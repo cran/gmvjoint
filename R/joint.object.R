@@ -24,6 +24,7 @@
 #'  \item{\code{long.formulas}}{A list of \code{long.formulas} (i.e. from \code{joint} call).}
 #'  \item{\code{surv.formulas}}{Formula object from \code{joint} call.}
 #'  \item{\code{control}}{List of control parameters used, if none then this is \code{NULL}.}
+#'  \item{\code{convergence.criteria}}{List of parameters relating to the stopping rule.}
 #'  \item{\code{inds}}{A list of length two, containing: \describe{
 #'  \item{\code{beta}}{The indices in \eqn{\beta} for each response.}
 #'  \item{\code{b}}{The indices in random effects \eqn{b} for each response.}
@@ -32,14 +33,17 @@
 #'  \item{\code{n}}{Number of subjects.}
 #'  \item{\code{nev}}{Number of events.}
 #'  }}
-#'  \item{\code{SE}}{A named vector of approximated standard error for each estimated parameter.
-#'  Only returned if \code{post.process=TRUE}.}
+#'  \item{\code{Hessian}}{The (approximated) Hessian found at MLEs.}
 #'  \item{\code{vcov}}{The full variance-covariance matrix between parameters. Only returned if 
 #'  \code{post.process=TRUE}.}
+#'  \item{\code{SE}}{A named vector of approximated standard error for each estimated parameter.
+#'  Only returned if \code{post.process=TRUE}.}
 #'  \item{\code{logLik}}{log-likelihood evaluated at parameter estimates. Only returned if 
 #'  \code{post.process=TRUE}.}
-#'  \item{\code{REs}}{The random effects, with variance attributed.}
+#'  \item{\code{REs}}{The random effects, with subject-specific variance matrices attributed.}
 #'  \item{\code{elapsed.time}}{Named numeric containing breakdown of elapsed time for \code{joint}
 #'  fit.}
+#'  \item{\code{dmats}}{if requested, data matrices on each of the longitudinal and survival 
+#'  processes for each subject.}
 #' }
 "joint.object" <- NULL

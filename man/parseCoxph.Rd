@@ -4,29 +4,39 @@
 \alias{parseCoxph}
 \title{Parsing the survival formula and constructing all survival-related data objects.}
 \usage{
-parseCoxph(surv.formula, data)
+parseCoxph(surv.formula, data, center = TRUE)
 }
 \arguments{
-\item{surv.formula}{A formula readable by `coxph`.#'}
+\item{surv.formula}{A formula readable by `coxph`.}
 
 \item{data}{a set of data containing covariate information for variables
 named by `surv.formula`. Can be of any 'completeness', as the function 
 returns a reduced set.}
+
+\item{center}{Should the covariate matrices be mean-centered before being returned?
+defaults to \code{center = TRUE}.}
 }
 \value{
-A list containing 
+A list with class \code{parseCoxph} containing: \describe{
 
-* `survdata`: Reduced version of `data`, with only one row per subject, with covariates 
- specified by `surv.formula` along with survival time and failure status. 
-* `ph`: model fit from `coxph`. 
-* `n`: Number of unique subjects. 
-* `Delta`: List of failure indicators for each subject (1=failed).
+  \item{\code{survdata}}{reduced version of \code{data}, with only one row per subject, with 
+  covariates specified by \code{surv.formula} along with survival time and failure status.}
+  \item{\code{Smat}}{matrix containing all requisite survival covariates (one row per subject).}
+  \item{\code{ph}}{the model fit from \code{coxph}.}
+  \item{\code{Delta}}{list of failure indicators for each of the unique subjects.}
+  \item{\code{n}}{number of unique subjects.}
+  \item{\code{ft}}{vector of unique failure times.}
+  \item{\code{nev}}{vector containing number of failures at each failure time \code{ft}.}
+  \item{\code{survtime}}{the name of the \code{time} variable in \code{surv.formula}.}
+  \item{\code{status}}{the name of the \code{event} variable in \code{surv.formula}.}
+  
+}
 }
 \description{
-Parsing the survival formula and constructing all survival-related data objects.
+Creates a set of survival data and fits a \code{coxph} model
+using a survival formula and a data set.
 }
 \examples{
-
 data = simData()$data
 parseCoxph(Surv(survtime, status) ~ bin, data = data)
 }

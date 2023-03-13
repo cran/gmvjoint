@@ -1,7 +1,7 @@
 #' @keywords internal
 obs.emp.I <- function(Omega, dmats, surv, sv,
                       Sigma, SigmaSplit, b, bsplit, 
-                      l0u, w, v, n, family, K, q, beta.inds, b.inds, beta.quad){
+                      l0u, w, v, n, family, K, q, beta.inds, b.inds){
   # Unpack Omega ----
   D <- Omega$D
   beta <- c(Omega$beta)
@@ -27,42 +27,45 @@ obs.emp.I <- function(Omega, dmats, surv, sv,
   
   # Scores ------------------------------------------------------------------
   # The RE covariance matrix, D
+  # Dinv <- solve(D)
+  # postmult <- diag(1, nrow = nrow(Dinv), ncol = ncol(Dinv))
+  # postmult[postmult == 0] <- 2 # off-diagonals have twice the contribution!
+  # sD <- mapply(function(b, S){
+  #   vech(t(0.5 * (Dinv %*% (S + tcrossprod(b)) %*% Dinv) - 0.5 * Dinv)) * vech(postmult)
+  # }, b = b, S = Sigma, SIMPLIFY = F)
+  
+  # NB this same as commented segment above, just done "properly".
   Dinv <- solve(D)
   vech.indices <- which(lower.tri(D, diag = T), arr.ind = T)
   dimnames(vech.indices) <- NULL
   delta.D <- lapply(1:nrow(vech.indices), function(d){
     out <- matrix(0, nrow(D), ncol(D))
     ind <- vech.indices[d, 2:1]
-    out[ind[1], ind[2]] <- out[ind[2], ind[1]] <- 1 # dD/dvech(d)_i
+    out[ind[1], ind[2]] <- out[ind[2], ind[1]] <- 1 # dD/dvech(d)_i i=1,...,length(vech(D))
     out
-  })
-  
-  lhs <- sapply(delta.D, function(d) {
-    -0.5 * sum(diag(Dinv %*% d))
   })
   
   sDi <- function(i) {
     mapply(function(b, S) {
-      out <- 0.5 * (S + tcrossprod(b)) %*% (Dinv %*% delta.D[[i]] %*% Dinv)   
-      lhs[i] + sum(diag(out))
+      EbbT <- S + tcrossprod(b)
+      dDEbbT <- delta.D[[i]] %*% EbbT
+      term <- 0.5 * Dinv - 0.5 * Dinv %*% dDEbbT %*% Dinv
+      out <- 0.5 * (t(-term) - term)
+      sum(diag(out))
     },
     b = b, S = Sigma,
-    SIMPLIFY = T)
+    SIMPLIFY = TRUE)
   }
   
   sD <- sapply(1:nrow(vech.indices), sDi)
   sD <- lapply(1:nrow(sD), function(x) sD[x, ]) # Cast to list
   
-  # The fixed effects, \beta 
-  if(beta.quad){
-    tau = mapply(maketau, Z = Z, S = SigmaSplit, SIMPLIFY = F)
-  }else{
-    tau = list(0)
-  }
+  
+  tau = mapply(maketau, Z = Z, S = SigmaSplit, SIMPLIFY = F)
   
   Sb <- mapply(function(X, Y, Z, b, tau){
     c(Sbeta(beta, X, Y, Z, b, sigma, family, beta.inds2, K,
-            beta.quad, tau, w, v))
+            FALSE, tau, w, v))
   }, X = X, Y = Y, Z = Z, b = bsplit, tau = tau, SIMPLIFY = F)
   
   # The dispersion parameter, \sigma
@@ -70,10 +73,7 @@ obs.emp.I <- function(Omega, dmats, surv, sv,
   funlist <- unlist(family)
   disps <- which(funlist %in% c('gaussian', 'genpois', 'Gamma'))
   for(j in disps){
-    if(beta.quad)
-      tau <- lapply(tau, el, j)
-    else
-      tau <- mapply(function(Z, S) unname(sqrt(diag(tcrossprod(Z[[j]] %*% S[[j]], Z[[j]])))), Z = Z, S = SigmaSplit)
+    tauj <- lapply(tau, el, j)
     
     # Create score accordingly.
     if(funlist[j] == 'gaussian'){
@@ -81,29 +81,29 @@ obs.emp.I <- function(Omega, dmats, surv, sv,
       for(i in 1:n){
         rhs <- 0
         for(l in 1:length(w)){
-          rhs <- rhs + w[l] * crossprod(Y[[i]][[j]] - X[[i]][[j]] %*% beta[beta.inds[[j]]] - Z[[i]][[j]] %*% bsplit[[i]][[j]] - v[l] * tau[[i]])
+          rhs <- rhs + w[l] * crossprod(Y[[i]][[j]] - X[[i]][[j]] %*% beta[beta.inds[[j]]] - Z[[i]][[j]] %*% bsplit[[i]][[j]] - v[l] * tauj[[i]])
         }
         temp[i] <- -m[[i]][j]/(2 * unlist(sigma)[j]) + 1/(2 * unlist(sigma)[j]^2) * rhs
       }
       Ss[[j]] <- temp
     }else if(funlist[j] == 'genpois'){
-      Ss[[j]] <- mapply(function(b, X, Y, Z, tau){
-        phi_update(b[[j]], X[[j]], Y[[j]], Z[[j]], beta[beta.inds[[j]]], sigma[[j]], w, v, tau)$Score
-      }, b = bsplit, X = X, Y = Y, Z = Z, tau = tau, SIMPLIFY = F)
+      Ss[[j]] <- mapply(function(b, X, Y, Z, tauj){
+        phi_update(b[[j]], X[[j]], Y[[j]], Z[[j]], beta[beta.inds[[j]]], sigma[[j]], w, v, tauj)$Score
+      }, b = bsplit, X = X, Y = Y, Z = Z, tauj = tauj, SIMPLIFY = F)
     }else if(funlist[j] == 'Gamma'){
-      Ss[[j]] <- mapply(function(b, X, Y, Z, tau){
-        pracma::grad(E_shape.b, sigma[[j]], X = X[[j]], Y = Y[[j]], Z = Z[[j]], tau = tau, 
+      Ss[[j]] <- mapply(function(b, X, Y, Z, tauj){
+        pracma::grad(E_shape.b, sigma[[j]], X = X[[j]], Y = Y[[j]], Z = Z[[j]], tauj = tauj, 
                      beta = beta[beta.inds[[j]]], b = b[[j]], w = w, v = v)
-      }, b = bsplit, X = X, Y = Y, Z = Z, tau = tau, SIMPLIFY = F)
+      }, b = bsplit, X = X, Y = Y, Z = Z, tauj = tauj, SIMPLIFY = F)
     }else{
       Ss[[j]] <- as.list(rep(NULL, n))
     }
   }
-
+  
   # Survival parameters (\gamma, \zeta)
   Sgz <- mapply(function(b, Sigma, S, SS, Fu, Fi, l0u, Delta){
-    Sgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, q, .Machine$double.eps^(1/3))
-  }, b = b, Sigma = SigmaSplit, S = S, SS = SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta, SIMPLIFY = F)
+    Sgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, .Machine$double.eps^(1/3))
+  }, b = b, Sigma = Sigma, S = sv$S, SS = sv$SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta, SIMPLIFY = F)
   
   # Collate and form information --------------------------------------------
   Ss2 <- lapply(1:n, function(i){
@@ -118,15 +118,17 @@ obs.emp.I <- function(Omega, dmats, surv, sv,
   
   SS <- rowSums(S) # sum S
   #  observed empirical information matrix (Mclachlan and Krishnan, 2008).
-  I <- Reduce('+', lapply(1:n, function(i) tcrossprod(S[, i]))) - tcrossprod(SS)/n
+  SiSiT <- Reduce('+', lapply(1:n, function(i) tcrossprod(S[, i])))
+  H <- SiSiT - tcrossprod(SS)/n
   
-  I
+  return(list(Score = S,
+              Hessian = H))
 }
 
 #' Extract the variance-covariance matrix from a \code{joint} fit.
 #' 
 #' @details Uses the observed-empirical \strong{approximation} of information matrix 
-#' (Mclachlan & Krishnan, 2008). The estimates for the baseline hazard are not estimated. 
+#' (Mclachlan & Krishnan, 2008). The standard errors for the baseline hazard are not estimated. 
 #' 
 #' @param object a joint model fit by the \code{joint} function.
 #' @param corr should the correlation matrix be returned instead of the variance-covariance?
@@ -135,10 +137,30 @@ obs.emp.I <- function(Omega, dmats, surv, sv,
 #' @return A variance-covariance matrix for the joint model object.
 #'
 #' @author James Murray \email{j.murray7@@ncl.ac.uk}
+#' 
+#' @section Methodology: 
+#' 
+#' Many competing ways exist for obtaining the observed information matrix in an EM algorithm. 
+#' In the context of joint modelling, the observed empirical approximation of the information 
+#' matrix has been used previously (\code{joineRML}, Hickey et al. 2018). Elsewhere,
+#' estimation of the observed information in a semi-parametric setting is outlined neatly in
+#' Xu et al. (2014). Here, they advocate for approximation of this information matrix by 
+#' numerical differentiation of the profile Fisher Score vector. We do not consider this 
+#' methodology owing to its computational expense. That is, for each element of \eqn{\Omega} 
+#' which is perturbed by some small amount \eqn{\tilde{\Omega}^{p}}, we must re-calculate
+#' \eqn{\hat{b}_i} and \eqn{\hat{\Sigma}_i}.
+#' 
 #' @references 
+#' 
+#' Hickey GL, Philipson P, Jorgensen A, Kolamunnage-Dona R. \code{joineRML}: a joint model and
+#' software package for time-to-event and multivariate longitudinal outcomes.
+#' \emph{BMC Med. Res. Methodol.} 2018; \strong{50}
 #' 
 #' McLachlan GJ, Krishnan T. \emph{The EM Algorithm and Extensions.} Second Edition. 
 #' Wiley-Interscience; 2008.
+#' 
+#' Xu C, Baines PD, Wang J. Standard error estimation using the EM algorithm for the joint 
+#' modeling of survival and longitudinal data. \emph{Biostatistics} 2014; \strong{15}(4).
 #' 
 #' @method vcov joint
 #' @export

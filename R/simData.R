@@ -55,6 +55,10 @@ rgenpois <- function(mu, phi){
 #' the survival sub-model, in the order of continuous and binary.
 #' @param theta parameters to control the failure rate, see \strong{baseline hazard}.
 #' @param cens.rate parameter for \code{rexp} to generate censoring times for each subject.
+#' @param unif.times logical, if \code{unif.times = TRUE} (the default), then \emph{every} subject
+#' will have the same follow-up times defined by \code{seq(0, fup, length.out = ntms)}. If 
+#' \code{unif.times = FALSE} then follow-up times are set as random draws from a uniform 
+#' distribution with maximum \code{fup}. 
 #' @param random.formula allows user to specify if an intercept-and-slope (\code{~ time}) or 
 #' intercept-only (\code{~1}) random effects structure should be used. defaults to the former.
 #' @param return.ranefs a logical determining whether the \emph{true} random effects should be 
@@ -134,6 +138,7 @@ simData <- function(n = 250, ntms = 10, fup = 5,
                     beta = rbind(c(1, 0.10, 0.33, -0.50), c(1, 0.10, 0.33, -0.50)), D = NULL,
                     gamma = c(0.5, -0.5), zeta = c(0.05, -0.30),
                     theta = c(-4, 0.2), cens.rate = exp(-3.5),
+                    unif.times = TRUE,
                     random.formula = NULL,
                     return.ranefs = FALSE){
   
@@ -169,11 +174,18 @@ simData <- function(n = 250, ntms = 10, fup = 5,
   if(any(eigen(D)$value < 0) || det(D) <= 0) stop('D must be positive semi-definite')
   
   # Necessary parameters & data generation ----
-  time <- seq(0, fup, length.out = ntms); tau <- fup + 0.1
+  if(unif.times){
+    time <- seq(0, fup, length.out = ntms)
+    tau <- fup + 0.1
+  }else{
+    time <- c(replicate(n, c(0, sort(runif(ntms - 1, max = fup)))))
+    tau <- fup
+  }
+
   cont <- rnorm(n); bin <- rbinom(n, 1, 0.5)  # Continuous and binary covariates.
   
   df <- data.frame(id = rep(1:n, each = ntms),
-                   time = rep(time, n),
+                   time = if(unif.times) rep(time, n) else time,
                    cont = rep(cont, each = ntms),
                    bin = rep(bin, each = ntms))
   
@@ -189,7 +201,7 @@ simData <- function(n = 250, ntms = 10, fup = 5,
   if(!is.null(random.formula)){
     q <- ncol(do.call(cbind, lapply(Z, head)))
     b <- MASS::mvrnorm(n, mu = rep(0, q), Sigma = D)
-    b.inds <- split(1:q, do.call(c, sapply(1:K, function(k) rep(k, ncol(Z[[k]])))))
+    b.inds <- split(1:q, do.call(c, sapply(1:K, function(k) rep(k, ncol(Z[[k]])), simplify = F)))
   }else{
     b <- MASS::mvrnorm(n, mu = rep(0, K * 2), Sigma = D)
     b.inds <- split(1:(2*K), rep(1:K, each = 2)) 

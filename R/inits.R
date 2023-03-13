@@ -29,7 +29,8 @@ Longit.inits <- function(long.formula, data, family){
   fits <- lapply(1:K, function(k){
     fit <- glmmTMB(long.formula[[k]],
                    family = family.form[[k]], data = data, dispformula = ~ 1,
-                   control = glmmTMBControl(optCtrl = list(rel.tol = 1e-3)))
+                   # control = glmmTMBControl(optCtrl = list(rel.tol = 1e-3))
+                   )
     fit
   })
   
@@ -97,16 +98,20 @@ Longit.inits <- function(long.formula, data, family){
 }
 
 #' @keywords internal
-.ToStartStop <- function(data){
+.ToStartStop <- function(data, Tvar){
   this.subj <- list()
   uids <- unique(data$id)
   for(i in uids){
-    i.dat <- data[data$id == i, c('id', 'time', 'survtime')]
-    this.subj[[i]] <- cbind(
+    i.dat <- data[data$id == i, c('id', 'time', Tvar)]
+    l <- nrow(i.dat)
+    this.one <- cbind(
       id = i.dat$id,
       time1 = i.dat$time,
-      time2 = c(i.dat$time[-1], unique(i.dat$survtime))
+      time2 = c(i.dat$time[-1], unique(i.dat[, Tvar]))
     )
+    if(this.one[l, 2] != unique(i.dat[, Tvar]))
+      rbind(this.one, c(this.one[l, 'id'], this.one[l, 3] + 1e-3, unique(i.dat[, Tvar])))
+    this.subj[[i]] <- this.one
   }
   as.data.frame(do.call(rbind, this.subj))
 }
@@ -122,12 +127,15 @@ Longit.inits <- function(long.formula, data, family){
 }
 
 #' @keywords internal
-TimeVarCox <- function(data, b, ph, formulas, b.inds){
+TimeVarCox <- function(data, b, surv, formulas, b.inds){
   # Prepare data
-  ss <- .ToStartStop(data); q <- ncol(b) # send to Start-Stop (ss) format
+  Tvar <- surv$survtime; Dvar <- surv$status
+  ss <- .ToStartStop(data, Tvar); q <- ncol(b) # send to Start-Stop (ss) format
   REs <- as.data.frame(b); REs$id <- 1:nrow(b); K <- length(b.inds)
   ss2 <- merge(ss, REs, 'id')
-  ss3 <- merge(ss2, data[, c('id', colnames(ph$x), 'survtime', 'status')], 'id')
+  invarSurv <- cbind(merge(data[, 'id', drop = F], data.frame(id = 1:surv$n, surv$Smat), 'id'),
+                     data[,c(Tvar, Dvar)])
+  ss3 <- merge(ss2, invarSurv, 'id')
   ss3 <- ss3[!duplicated.matrix(ss3), ]
   
   # Create gamma variable
@@ -141,12 +149,12 @@ TimeVarCox <- function(data, b, ph, formulas, b.inds){
   # And join on ...
   ss3 <- cbind(ss3, gamma)
   # Update this to deal with ties too?
-  ss3$status2 <- ifelse(ss3$survtime == ss3$time2, ss3$status, 0)
+  ss3$status2 <- ifelse(ss3[,Tvar] == ss3$time2, ss3[, Dvar], 0)
   
   # Time Varying coxph
   # Formula
   timevar.formula <- as.formula(
-    paste0('Surv(time1, time2, status2) ~ ', paste0(colnames(ph$x), collapse = ' + '), ' + ', paste0('gamma_', 1:K, collapse = ' + '))
+    paste0('Surv(time1, time2, status2) ~ ', paste0(names(surv$ph$assign), collapse = ' + '), ' + ', paste0('gamma_', 1:K, collapse = ' + '))
   )
   ph <- coxph(timevar.formula, data = ss3)
   

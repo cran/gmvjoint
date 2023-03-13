@@ -24,6 +24,49 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// dmvnrm_arma_fast
+arma::vec dmvnrm_arma_fast(arma::mat const& x, arma::rowvec const& mean, arma::mat const& sigma, bool const logd);
+RcppExport SEXP _gmvjoint_dmvnrm_arma_fast(SEXP xSEXP, SEXP meanSEXP, SEXP sigmaSEXP, SEXP logdSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat const& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec const& >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< bool const >::type logd(logdSEXP);
+    rcpp_result_gen = Rcpp::wrap(dmvnrm_arma_fast(x, mean, sigma, logd));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dmvt_arma_fast
+arma::vec dmvt_arma_fast(arma::mat const& x, arma::rowvec const& mean, arma::mat const& sigma, double const df, bool const logd);
+RcppExport SEXP _gmvjoint_dmvt_arma_fast(SEXP xSEXP, SEXP meanSEXP, SEXP sigmaSEXP, SEXP dfSEXP, SEXP logdSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat const& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec const& >::type mean(meanSEXP);
+    Rcpp::traits::input_parameter< arma::mat const& >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< double const >::type df(dfSEXP);
+    Rcpp::traits::input_parameter< bool const >::type logd(logdSEXP);
+    rcpp_result_gen = Rcpp::wrap(dmvt_arma_fast(x, mean, sigma, df, logd));
+    return rcpp_result_gen;
+END_RCPP
+}
+// S_
+double S_(const Rcpp::List& L, const arma::vec& gamma_rep, const arma::vec& zeta, const arma::vec& b);
+RcppExport SEXP _gmvjoint_S_(SEXP LSEXP, SEXP gamma_repSEXP, SEXP zetaSEXP, SEXP bSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type L(LSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type gamma_rep(gamma_repSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type zeta(zetaSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type b(bSEXP);
+    rcpp_result_gen = Rcpp::wrap(S_(L, gamma_rep, zeta, b));
+    return rcpp_result_gen;
+END_RCPP
+}
 // ll_Gamma
 double ll_Gamma(const arma::vec& Y, const double& shape, const arma::vec& mu);
 RcppExport SEXP _gmvjoint_ll_Gamma(SEXP YSEXP, SEXP shapeSEXP, SEXP muSEXP) {
@@ -225,15 +268,15 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// Sgammazeta
-arma::vec Sgammazeta(arma::vec& gammazeta, arma::vec& b, List Sigma, arma::rowvec& S, arma::mat& SS, arma::mat& Fu, arma::rowvec& Fi, arma::vec& haz, int Delta, arma::vec& w, arma::vec& v, List b_inds, int K, int q, long double eps);
-RcppExport SEXP _gmvjoint_Sgammazeta(SEXP gammazetaSEXP, SEXP bSEXP, SEXP SigmaSEXP, SEXP SSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP FiSEXP, SEXP hazSEXP, SEXP DeltaSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP qSEXP, SEXP epsSEXP) {
+// Egammazeta
+double Egammazeta(arma::vec& gammazeta, arma::vec& b, arma::mat& Sigma, arma::rowvec& S, arma::mat& SS, arma::mat& Fu, arma::rowvec& Fi, arma::vec& haz, int Delta, arma::vec& w, arma::vec& v, Rcpp::List b_inds, int K);
+RcppExport SEXP _gmvjoint_Egammazeta(SEXP gammazetaSEXP, SEXP bSEXP, SEXP SigmaSEXP, SEXP SSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP FiSEXP, SEXP hazSEXP, SEXP DeltaSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::vec& >::type gammazeta(gammazetaSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type b(bSEXP);
-    Rcpp::traits::input_parameter< List >::type Sigma(SigmaSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type Sigma(SigmaSEXP);
     Rcpp::traits::input_parameter< arma::rowvec& >::type S(SSEXP);
     Rcpp::traits::input_parameter< arma::mat& >::type SS(SSSEXP);
     Rcpp::traits::input_parameter< arma::mat& >::type Fu(FuSEXP);
@@ -242,23 +285,45 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type Delta(DeltaSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type w(wSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type v(vSEXP);
-    Rcpp::traits::input_parameter< List >::type b_inds(b_indsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type b_inds(b_indsSEXP);
     Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< int >::type q(qSEXP);
+    rcpp_result_gen = Rcpp::wrap(Egammazeta(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K));
+    return rcpp_result_gen;
+END_RCPP
+}
+// Sgammazeta
+arma::vec Sgammazeta(arma::vec& gammazeta, arma::vec& b, arma::mat& Sigma, arma::rowvec& S, arma::mat& SS, arma::mat& Fu, arma::rowvec& Fi, arma::vec& haz, int Delta, arma::vec& w, arma::vec& v, Rcpp::List b_inds, int K, long double eps);
+RcppExport SEXP _gmvjoint_Sgammazeta(SEXP gammazetaSEXP, SEXP bSEXP, SEXP SigmaSEXP, SEXP SSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP FiSEXP, SEXP hazSEXP, SEXP DeltaSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP epsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec& >::type gammazeta(gammazetaSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type b(bSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type Sigma(SigmaSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type SS(SSSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type Fu(FuSEXP);
+    Rcpp::traits::input_parameter< arma::rowvec& >::type Fi(FiSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type haz(hazSEXP);
+    Rcpp::traits::input_parameter< int >::type Delta(DeltaSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type w(wSEXP);
+    Rcpp::traits::input_parameter< arma::vec& >::type v(vSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type b_inds(b_indsSEXP);
+    Rcpp::traits::input_parameter< int >::type K(KSEXP);
     Rcpp::traits::input_parameter< long double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(Sgammazeta(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps));
+    rcpp_result_gen = Rcpp::wrap(Sgammazeta(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, eps));
     return rcpp_result_gen;
 END_RCPP
 }
 // Hgammazeta
-arma::mat Hgammazeta(arma::vec& gammazeta, arma::vec& b, List Sigma, arma::rowvec& S, arma::mat& SS, arma::mat& Fu, arma::rowvec& Fi, arma::vec& haz, int Delta, arma::vec& w, arma::vec& v, List b_inds, int K, int q, double eps);
-RcppExport SEXP _gmvjoint_Hgammazeta(SEXP gammazetaSEXP, SEXP bSEXP, SEXP SigmaSEXP, SEXP SSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP FiSEXP, SEXP hazSEXP, SEXP DeltaSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP qSEXP, SEXP epsSEXP) {
+arma::mat Hgammazeta(arma::vec& gammazeta, arma::vec& b, arma::mat& Sigma, arma::rowvec& S, arma::mat& SS, arma::mat& Fu, arma::rowvec& Fi, arma::vec& haz, int Delta, arma::vec& w, arma::vec& v, Rcpp::List b_inds, int K, long double Seps, long double Heps);
+RcppExport SEXP _gmvjoint_Hgammazeta(SEXP gammazetaSEXP, SEXP bSEXP, SEXP SigmaSEXP, SEXP SSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP FiSEXP, SEXP hazSEXP, SEXP DeltaSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP SepsSEXP, SEXP HepsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< arma::vec& >::type gammazeta(gammazetaSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type b(bSEXP);
-    Rcpp::traits::input_parameter< List >::type Sigma(SigmaSEXP);
+    Rcpp::traits::input_parameter< arma::mat& >::type Sigma(SigmaSEXP);
     Rcpp::traits::input_parameter< arma::rowvec& >::type S(SSEXP);
     Rcpp::traits::input_parameter< arma::mat& >::type SS(SSSEXP);
     Rcpp::traits::input_parameter< arma::mat& >::type Fu(FuSEXP);
@@ -267,34 +332,31 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< int >::type Delta(DeltaSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type w(wSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type v(vSEXP);
-    Rcpp::traits::input_parameter< List >::type b_inds(b_indsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type b_inds(b_indsSEXP);
     Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< int >::type q(qSEXP);
-    Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
-    rcpp_result_gen = Rcpp::wrap(Hgammazeta(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps));
+    Rcpp::traits::input_parameter< long double >::type Seps(SepsSEXP);
+    Rcpp::traits::input_parameter< long double >::type Heps(HepsSEXP);
+    rcpp_result_gen = Rcpp::wrap(Hgammazeta(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, Seps, Heps));
     return rcpp_result_gen;
 END_RCPP
 }
 // lambdaUpdate
-arma::mat lambdaUpdate(List survtimes, arma::mat& ft, arma::vec& gamma, arma::vec& gamma_rep, arma::vec& zeta, List S, List Sigma, List b, arma::vec& w, arma::vec& v, List b_inds, int K, int q);
-RcppExport SEXP _gmvjoint_lambdaUpdate(SEXP survtimesSEXP, SEXP ftSEXP, SEXP gammaSEXP, SEXP gamma_repSEXP, SEXP zetaSEXP, SEXP SSEXP, SEXP SigmaSEXP, SEXP bSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP qSEXP) {
+arma::mat lambdaUpdate(Rcpp::List survtimes, arma::mat& ft, arma::vec& gamma, arma::vec& zeta, Rcpp::List S, Rcpp::List Sigma, Rcpp::List b, arma::vec& w, arma::vec& v, Rcpp::List b_inds);
+RcppExport SEXP _gmvjoint_lambdaUpdate(SEXP survtimesSEXP, SEXP ftSEXP, SEXP gammaSEXP, SEXP zetaSEXP, SEXP SSEXP, SEXP SigmaSEXP, SEXP bSEXP, SEXP wSEXP, SEXP vSEXP, SEXP b_indsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< List >::type survtimes(survtimesSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type survtimes(survtimesSEXP);
     Rcpp::traits::input_parameter< arma::mat& >::type ft(ftSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type gamma(gammaSEXP);
-    Rcpp::traits::input_parameter< arma::vec& >::type gamma_rep(gamma_repSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type zeta(zetaSEXP);
-    Rcpp::traits::input_parameter< List >::type S(SSEXP);
-    Rcpp::traits::input_parameter< List >::type Sigma(SigmaSEXP);
-    Rcpp::traits::input_parameter< List >::type b(bSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type S(SSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type Sigma(SigmaSEXP);
+    Rcpp::traits::input_parameter< Rcpp::List >::type b(bSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type w(wSEXP);
     Rcpp::traits::input_parameter< arma::vec& >::type v(vSEXP);
-    Rcpp::traits::input_parameter< List >::type b_inds(b_indsSEXP);
-    Rcpp::traits::input_parameter< int >::type K(KSEXP);
-    Rcpp::traits::input_parameter< int >::type q(qSEXP);
-    rcpp_result_gen = Rcpp::wrap(lambdaUpdate(survtimes, ft, gamma, gamma_rep, zeta, S, Sigma, b, w, v, b_inds, K, q));
+    Rcpp::traits::input_parameter< Rcpp::List >::type b_inds(b_indsSEXP);
+    rcpp_result_gen = Rcpp::wrap(lambdaUpdate(survtimes, ft, gamma, zeta, S, Sigma, b, w, v, b_inds));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -326,6 +388,50 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int >::type K(KSEXP);
     Rcpp::traits::input_parameter< double >::type eps(epsSEXP);
     rcpp_result_gen = Rcpp::wrap(joint_density_sdb(b, Y, X, Z, beta, D, sigma, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, zeta, beta_inds, b_inds, K, eps));
+    return rcpp_result_gen;
+END_RCPP
+}
+// metropolis
+List metropolis(const arma::vec& b, const List Omega, const List Y, const List X, const List Z, const List family, const int Delta, const arma::rowvec& S, const arma::rowvec& Fi, const double l0i, const arma::mat& SS, const arma::mat& Fu, const arma::rowvec& haz, const arma::vec& gamma_rep, const List beta_inds, const List b_inds, const int K, const int q, const int burnin, const int N, const arma::mat& Sigma, const double tune);
+RcppExport SEXP _gmvjoint_metropolis(SEXP bSEXP, SEXP OmegaSEXP, SEXP YSEXP, SEXP XSEXP, SEXP ZSEXP, SEXP familySEXP, SEXP DeltaSEXP, SEXP SSEXP, SEXP FiSEXP, SEXP l0iSEXP, SEXP SSSEXP, SEXP FuSEXP, SEXP hazSEXP, SEXP gamma_repSEXP, SEXP beta_indsSEXP, SEXP b_indsSEXP, SEXP KSEXP, SEXP qSEXP, SEXP burninSEXP, SEXP NSEXP, SEXP SigmaSEXP, SEXP tuneSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type b(bSEXP);
+    Rcpp::traits::input_parameter< const List >::type Omega(OmegaSEXP);
+    Rcpp::traits::input_parameter< const List >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const List >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const List >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const List >::type family(familySEXP);
+    Rcpp::traits::input_parameter< const int >::type Delta(DeltaSEXP);
+    Rcpp::traits::input_parameter< const arma::rowvec& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< const arma::rowvec& >::type Fi(FiSEXP);
+    Rcpp::traits::input_parameter< const double >::type l0i(l0iSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type SS(SSSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Fu(FuSEXP);
+    Rcpp::traits::input_parameter< const arma::rowvec& >::type haz(hazSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type gamma_rep(gamma_repSEXP);
+    Rcpp::traits::input_parameter< const List >::type beta_inds(beta_indsSEXP);
+    Rcpp::traits::input_parameter< const List >::type b_inds(b_indsSEXP);
+    Rcpp::traits::input_parameter< const int >::type K(KSEXP);
+    Rcpp::traits::input_parameter< const int >::type q(qSEXP);
+    Rcpp::traits::input_parameter< const int >::type burnin(burninSEXP);
+    Rcpp::traits::input_parameter< const int >::type N(NSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Sigma(SigmaSEXP);
+    Rcpp::traits::input_parameter< const double >::type tune(tuneSEXP);
+    rcpp_result_gen = Rcpp::wrap(metropolis(b, Omega, Y, X, Z, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, beta_inds, b_inds, K, q, burnin, N, Sigma, tune));
+    return rcpp_result_gen;
+END_RCPP
+}
+// vech2mat
+arma::mat vech2mat(const arma::vec& x, const int q);
+RcppExport SEXP _gmvjoint_vech2mat(SEXP xSEXP, SEXP qSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const int >::type q(qSEXP);
+    rcpp_result_gen = Rcpp::wrap(vech2mat(x, q));
     return rcpp_result_gen;
 END_RCPP
 }

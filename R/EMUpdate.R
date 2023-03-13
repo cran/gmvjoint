@@ -2,7 +2,7 @@
 EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
                      S, SS, Fi, Fu, l0i, l0u, Delta, l0, sv,   # Survival
                      w, v, n, m, hessian,                      # Quadrature + additional info.
-                     beta.inds, b.inds, K, q, beta.quad){
+                     beta.inds, b.inds, K, q){
   
   # Unpack Omega, the parameter vector
   D <- Omega$D; beta <- Omega$beta; sigma <- Omega$sigma; gamma <- Omega$gamma; zeta <- Omega$zeta
@@ -46,19 +46,19 @@ EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
   D.update <- mapply(function(Sigma, b) Sigma + tcrossprod(b), Sigma = Sigma, b = b.hat, SIMPLIFY = F)
   
   # \beta =====================================
-  if(beta.quad){
+  # if(beta.quad){
     tau = mapply(maketau, Z = Z, S = SigmaSplit, SIMPLIFY = F)
-  }else{
-    tau = list(0)
-  }
+  # }else{
+  #   tau = list(0)
+  # }
   
   Sb <- mapply(function(X, Y, Z, b, tau){
     Sbeta(beta, X, Y, Z, b, sigma, family, beta.inds2, K, 
-          beta.quad, tau, w, v)
+          FALSE, tau, w, v)
   }, X = X, Y = Y, Z = Z, b = bsplit, tau = tau, SIMPLIFY = F)
   Hb <- mapply(function(X, Y, Z, b, tau){
     Hbeta(beta, X, Y, Z, b, sigma, family, beta.inds2, K,
-          beta.quad, tau, w, v)
+          FALSE, tau, w, v)
   }, X = X, Y = Y, Z = Z, b = bsplit, tau = tau, SIMPLIFY = F)
   
   # Dispersion ('\sigma') =====================
@@ -66,26 +66,23 @@ EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
   disps <- which(funlist %in% c('gaussian', 'genpois', 'Gamma'))
   sigma.update <- sigma.update2 <- replicate(K, list(), simplify = F)
   for(j in disps){
-    if(beta.quad)
-      tau <- lapply(tau, el, j)
-    else
-      tau <- mapply(function(Z, S) unname(sqrt(diag(tcrossprod(Z[[j]] %*% S[[j]], Z[[j]])))), Z = Z, S = SigmaSplit)
+    tauj <- lapply(tau, el, j)
     
     # Update accordingly.
     if(funlist[j] == 'gaussian'){
-      sigma.update[[j]] <- sum(mapply(function(X, Y, Z, b, tau){
-        vare_update(X[[j]], Y[[j]], Z[[j]], b[[j]], beta[beta.inds[[j]]], tau, w, v)
-      }, X = X, Y = Y, Z = Z, b = bsplit, tau = tau))
+      sigma.update[[j]] <- sum(mapply(function(X, Y, Z, b, tauj){
+        vare_update(X[[j]], Y[[j]], Z[[j]], b[[j]], beta[beta.inds[[j]]], tauj, w, v)
+      }, X = X, Y = Y, Z = Z, b = bsplit, tauj = tauj))
     }
     if(funlist[j] == 'genpois'){
-      sigma.update[[j]] <- rowSums(mapply(function(b, X, Y, Z, tau){
-      unlist(phi_update(b[[j]], X[[j]], Y[[j]], Z[[j]], beta[beta.inds[[j]]], sigma[[j]], w, v, tau))
-      }, b = bsplit, X = X, Y = Y, Z = Z, tau = tau))
+      sigma.update[[j]] <- rowSums(mapply(function(b, X, Y, Z, tauj){
+      unlist(phi_update(b[[j]], X[[j]], Y[[j]], Z[[j]], beta[beta.inds[[j]]], sigma[[j]], w, v, tauj))
+      }, b = bsplit, X = X, Y = Y, Z = Z, tauj = tauj))
     }
     if(funlist[j] == 'Gamma'){
-      sigma.update[[j]] <- rowSums(mapply(function(X, Y, Z, tau, b){
+      sigma.update[[j]] <- rowSums(mapply(function(X, Y, Z, tauj, b){
         unlist(shape_update(sigma[[j]], X[[j]], Y[[j]], Z[[j]], tau, beta[beta.inds[[j]]], b[[j]], w, v))
-      }, X = X, Y = Y, Z = Z, tau = tau, b = bsplit))
+      }, X = X, Y = Y, Z = Z, tauj = tauj, b = bsplit))
     }
   }
   
@@ -93,12 +90,14 @@ EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
   
   # Survival parameters (\gamma, \zeta) =======
   Sgz <- mapply(function(b, Sigma, S, SS, Fu, Fi, l0u, Delta){
-    Sgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, q, .Machine$double.eps^(1/3))
-  }, b = b.hat, Sigma = SigmaSplit, S = S, SS = SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta)
+    Sgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, .Machine$double.eps^(1/3))
+  }, b = b.hat, Sigma = Sigma, S = S, SS = SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta)
   
   Hgz <- mapply(function(b, Sigma, S, SS, Fu, Fi, l0u, Delta){
-    Hgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, q, .Machine$double.eps^(1/4))
-  }, b = b.hat, Sigma = SigmaSplit, S = S, SS = SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta, SIMPLIFY = F)
+    Hgammazeta(c(gamma, zeta), b, Sigma, S, SS, Fu, Fi, l0u, Delta, w, v, b.inds2, K, 
+               .Machine$double.eps^(1/3), .Machine$double.eps^(1/4))
+  }, b = b.hat, Sigma = Sigma, S = S, SS = SS, Fu = Fu, Fi = Fi, l0u = l0u, Delta = Delta, SIMPLIFY = F)
+  
   
   # #########
   # M-step ##
@@ -127,7 +126,7 @@ EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
   gammazeta.new <- c(gamma, zeta) - solve(Reduce('+', Hgz), rowSums(Sgz))
   
   # The baseline hazard and related objects
-  lambda.update <- lambdaUpdate(sv$surv.times, do.call(cbind, sv$ft.mat), gamma, gamma.rep, zeta, S, SigmaSplit, b.hat, w, v, b.inds2, K, q)
+  lambda.update <- lambdaUpdate(sv$surv.times, sv$ft.mat, gamma, zeta, S, Sigma, b.hat, w, v, b.inds2)
   l0.new <- sv$nev/rowSums(lambda.update)
   l0u.new <- lapply(l0u, function(ll){
     l0.new[1:length(ll)]
@@ -140,7 +139,8 @@ EMupdate <- function(Omega, family, X, Y, Z, b,                # Longit.
     D = D.new, beta = beta.new, sigma = sigma.new,       # Yk responses
     gamma = gammazeta.new[1:K], zeta = gammazeta.new[(K+1):length(gammazeta.new)],  # Survival
     l0 = l0.new, l0u = l0u.new, l0i = as.list(l0i.new),  #   Hazard
-    b = b.hat                                            #   REs.
+    b = b.hat,                                           #   REs.
+    Sigma = Sigma                                        #   Their variance
   )
   
 }

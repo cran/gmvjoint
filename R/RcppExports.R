@@ -7,6 +7,21 @@ GP1_pmf_scalar <- function(mu, phi, Y) {
 }
 
 #' @keywords internal
+dmvnrm_arma_fast <- function(x, mean, sigma, logd = TRUE) {
+    .Call(`_gmvjoint_dmvnrm_arma_fast`, x, mean, sigma, logd)
+}
+
+#' @keywords internal
+dmvt_arma_fast <- function(x, mean, sigma, df, logd = TRUE) {
+    .Call(`_gmvjoint_dmvt_arma_fast`, x, mean, sigma, df, logd)
+}
+
+#' @keywords internal
+S_ <- function(L, gamma_rep, zeta, b) {
+    .Call(`_gmvjoint_S_`, L, gamma_rep, zeta, b)
+}
+
+#' @keywords internal
 ll_Gamma <- function(Y, shape, mu) {
     .Call(`_gmvjoint_ll_Gamma`, Y, shape, mu)
 }
@@ -57,22 +72,37 @@ phi_update <- function(b, X, Y, Z, beta, phi, w, v, tau) {
 }
 
 #' @keywords internal
-Sgammazeta <- function(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps) {
-    .Call(`_gmvjoint_Sgammazeta`, gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps)
+Egammazeta <- function(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K) {
+    .Call(`_gmvjoint_Egammazeta`, gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K)
 }
 
 #' @keywords internal
-Hgammazeta <- function(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps) {
-    .Call(`_gmvjoint_Hgammazeta`, gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, q, eps)
+Sgammazeta <- function(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, eps) {
+    .Call(`_gmvjoint_Sgammazeta`, gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, eps)
 }
 
 #' @keywords internal
-lambdaUpdate <- function(survtimes, ft, gamma, gamma_rep, zeta, S, Sigma, b, w, v, b_inds, K, q) {
-    .Call(`_gmvjoint_lambdaUpdate`, survtimes, ft, gamma, gamma_rep, zeta, S, Sigma, b, w, v, b_inds, K, q)
+Hgammazeta <- function(gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, Seps, Heps) {
+    .Call(`_gmvjoint_Hgammazeta`, gammazeta, b, Sigma, S, SS, Fu, Fi, haz, Delta, w, v, b_inds, K, Seps, Heps)
+}
+
+#' @keywords internal
+lambdaUpdate <- function(survtimes, ft, gamma, zeta, S, Sigma, b, w, v, b_inds) {
+    .Call(`_gmvjoint_lambdaUpdate`, survtimes, ft, gamma, zeta, S, Sigma, b, w, v, b_inds)
 }
 
 #' @keywords internal
 joint_density_sdb <- function(b, Y, X, Z, beta, D, sigma, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, zeta, beta_inds, b_inds, K, eps) {
     .Call(`_gmvjoint_joint_density_sdb`, b, Y, X, Z, beta, D, sigma, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, zeta, beta_inds, b_inds, K, eps)
+}
+
+#' @keywords internal
+metropolis <- function(b, Omega, Y, X, Z, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, beta_inds, b_inds, K, q, burnin, N, Sigma, tune) {
+    .Call(`_gmvjoint_metropolis`, b, Omega, Y, X, Z, family, Delta, S, Fi, l0i, SS, Fu, haz, gamma_rep, beta_inds, b_inds, K, q, burnin, N, Sigma, tune)
+}
+
+#' @keywords internal
+vech2mat <- function(x, q) {
+    .Call(`_gmvjoint_vech2mat`, x, q)
 }
 

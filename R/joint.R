@@ -2,7 +2,8 @@
 #'
 #' @param long.formulas A list of formula objects specifying the \eqn{K} responses. Each must be 
 #'        usable by \code{\link[glmmTMB]{glmmTMB}}. A restriction is that unique identifiers must 
-#'        be named `id`, and increment in intervals of at exactly one.
+#'        be named \code{id}, and increment in intervals of at exactly one. The variable for time
+#'        must be named \code{time}.
 #' @param surv.formula A formula specifying the time-to-event sub-model. Must be usable by 
 #'   \code{\link[survival]{coxph}}.
 #' @param data A \code{data.frame} containing all covariates and responses.
@@ -13,16 +14,20 @@
 #' 
 #'   \item{\code{verbose}}{Logical: If \code{TRUE}, at each iteration parameter information will 
 #'   be printed to console. Default is \code{verbose=FALSE}.}
-#'   \item{\code{conv}}{Character: Either \code{"absolute"} or \code{"relative"} to invoke 
-#'   absolute or relative difference as the convergence criterion. Default is 
-#'   \code{conv="relative"}.}
-#'   \item{\code{tol}}{Numeric: Tolerance value used to assess convergence. 
-#'   Default is \code{tol=1e-2}.}
+#'   \item{\code{conv}}{Character: Convergence criterion, see \strong{details}.}
+#'   \item{\code{tol.abs}}{Numeric: Tolerance value used to assess convergence, see 
+#'   \strong{details}. Default is \code{tol.abs=1e-3}.}
+#'   \item{\code{tol.rel}}{Numeric: Tolerance value used to assess convergence, see 
+#'   \strong{details}. Default is \code{tol.rel=1e-2}.}
+#'   \item{\code{tol.den}}{Numeric: Tolerance value used to assess convergence, see 
+#'   \strong{details}. Default is \code{tol.den=1e-3}.}
+#'   \item{\code{tol.thr}}{Numeric: Threshold used when \code{conv = 'sas'}, see 
+#'   \strong{details}. Default is \code{tol.thr=1e-1}.}
 #'   \item{\code{correlated}}{Logical: Should covariance parameters \strong{between} responses 
 #'   be estimated and used in determination of model convergence? Default is 
 #'   \code{correlated=TRUE}. A choice of \code{correlated=FALSE} is equivalent to imposing the 
 #'   belief that deviations in longitudinal trajectories are not correlated across responses, but
-#'    can \strong{greatly decrease} computation time.}
+#'   can \strong{greatly decrease} computation time.}
 #'   \item{\code{gh.nodes}}{Integer: Number of weights and abscissae to use in gauss-hermite 
 #'   quadrature. Defaults to \code{gh.nodes=3}, which is usually sufficient.}
 #'   \item{\code{gh.sigma}}{Numeric: Standard deviation for gauss-hermite approximation of normal
@@ -32,12 +37,11 @@
 #'   in minimising the negative log-likelihood, or calculated post-hoc using forward differencing.
 #'   Default is \code{hessian="auto"} for the former, with \code{hessian="manual"} the 
 #'   option for the latter.}
-#'   \item{\code{return.inits}}{Logical: Should lists containing the initial conditions for the 
-#'   longitudinal and survival sub-models be returned? Defaults to \code{return.inits=FALSE}.}
-#'   \item{\code{beta.quad}}{Logical: Should gauss-hermite quadrature be used to appraise
-#'   calculation of score and Hessian in updates to fixed effects \eqn{\beta}? Default is 
-#'   \code{beta.quad=FALSE} which works very well in most situations. Dispersion parameters
-#'   and survival pair are always calculated with quadrature.}
+#'   \item{\code{return.dmats}}{Logical: Should data matrices be returned? Defaults to 
+#'   \code{return.dmats=TRUE}. Note that some S3 methods for \code{\link{joint.object}}s
+#'   greatly benefit from inclusion of these data matrices.}
+#'   \item{\code{center.ph}}{Should the survival covariates be mean-centered? Defaults
+#'   to \code{center.ph=TRUE}.}
 #' 
 #' }
 #' 
@@ -50,9 +54,9 @@
 #' multivariate joint model in Murray and Philipson (2022). Each longitudinal response is 
 #' modelled by 
 #' 
-#' \deqn{h(E[Y_{ik}|b_{ik};\Omega]) = X_{ik}\beta_k + Z_{ik}b_{ik}} 
+#' \deqn{h_k(E[Y_{ik}|b_{ik};\Omega]) = X_{ik}\beta_k + Z_{ik}b_{ik}} 
 #' 
-#' where \eqn{h} is a known, monotonic link function. An association is induced between the 
+#' where \eqn{h_k} is a known, monotonic link function. An association is induced between the 
 #' \eqn{K}th response and the hazard \eqn{\lambda_i(t)} by: 
 #' 
 #' \deqn{\lambda_i(t)=\lambda_0(t)\exp\{S_i^T\zeta + \sum_{k=1}^K\gamma_kW_k(t)^Tb_{ik}\}} 
@@ -88,7 +92,23 @@
 #'   Mclachlan and Krishnan (2008), and later used in \code{joineRML} (Hickey et al., 2018).
 #'   These are only calculated if \code{post.process=TRUE}. Generally, these SEs are well-behaved,
 #'   but their reliability will depend on multiple factors: Sample size; number of events; 
-#'   collinearity of REs of responses; number of observed times, and so on.
+#'   collinearity of REs of responses; number of observed times, and so on. Some more discussion/
+#'   references are given in \code{\link{vcov.joint}}.
+#'   
+#' @section Convergence of the algorithm:
+#' A few convergence criteria (specified by \code{control$conv}) are available: \describe{
+#'   \item{\code{abs}}{Convergence reached when maximum absolute change in parameter estimates
+#'   is \code{<tol.abs}.}
+#'   \item{\code{rel}}{Convergence reached when maximum absolute relative change in parameter
+#'   estimates is \code{<tol.rel}. A small amount (\code{tol.den}) is added to the denominator 
+#'   to eschew numerical issues if parameters are nearly zero.}
+#'   \item{\code{either}}{Convergence is reached when either \code{abs} or \code{rel} are met.}
+#'   \item{\code{sas}}{Assess convergence for parameters \eqn{|\Omega_a|}\code{<tol.thr} by the
+#'   \code{abs} criterion, else \code{rel}. This is the default.}
+#' 
+#' }
+#' Note that the baseline hazard is updated at each EM iteration, but is not monitored for 
+#' convergence.
 #' 
 #' @author James Murray (\email{j.murray7@@ncl.ac.uk}).
 #'
@@ -148,9 +168,9 @@
 #'                               'serBilir', 'albumin', 'spiders', 'platelets'))
 #' PBC <- na.omit(PBC) 
 #' 
-#' # Specify GLMM sub-models, including interaction and natural spline terms
+#' # Specify GLMM sub-models, including interaction and quadratic time terms
 #' long.formulas <- list(
-#'   serBilir ~ drug * (splines::ns(time, df = 3)) + (1 + splines::ns(time, df = 3)|id),
+#'   serBilir ~ drug * (time + I(time^2)) + (1 + time + I(time^2)|id),
 #'   albumin ~ drug * time + (1 + time|id),
 #'   platelets ~ drug * time + (1 + time|id),
 #'   spiders ~ drug * time + (1|id)
@@ -167,9 +187,11 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   start.time <- proc.time()[3]
   
   # Initial parsing ----
+  if("factor"%in%class(data$id)) data$id <- as.numeric(as.character(data$id))
   formulas <- lapply(long.formulas, parseFormula)
-  surv <- parseCoxph(surv.formula, data)
-  n <- nrow(surv$survdata); K <- length(family)
+  center.ph <- if(!is.null(control$center.ph)) control$center.ph else TRUE
+  surv <- parseCoxph(surv.formula, data, center.ph)
+  n <- surv$n; K <- length(family)
   if(K!=length(long.formulas)) stop('Mismatched lengths of "family" and "long.formulas".')
   
   # Initial conditons ----
@@ -185,7 +207,7 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   })
   q <- length(do.call(c, b.inds))
   
-  inits.surv <- TimeVarCox(data, inits.long$b, surv$ph, formulas, b.inds)
+  inits.surv <- TimeVarCox(data, inits.long$b, surv, formulas, b.inds)
   
   # Longitudinal parameters
   beta <- inits.long$beta.init
@@ -193,13 +215,13 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   sigma <- inits.long$sigma.init # dispersion / resid. variance / 0 otherwise.
   b <- lapply(1:n, function(i) inits.long$b[i, ])
   # Survival parameters
-  zeta <- inits.surv$inits[match(colnames(surv$ph$x), names(inits.surv$inits))]
+  zeta <- inits.surv$inits[match(names(surv$ph$assign), names(inits.surv$inits))]
   names(zeta) <- paste0('zeta_', names(zeta))
   gamma <- inits.surv$inits[grepl('gamma\\_', names(inits.surv$inits))]
   
   # Longitudinal and survival data objects ----
   dmats <- createDataMatrices(data, formulas)
-  sv <- surv.mod(surv$ph, surv$survdata, formulas, inits.surv$l0.init)
+  sv <- surv.mod(surv, formulas, inits.surv$l0.init)
   
   X <- dmats$X; Y <- dmats$Y; Z <- dmats$Z # Longitudinal data matrices
   m <- lapply(Y, function(y) sapply(y, length))
@@ -231,34 +253,35 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   
   # Begin EM ----
   diff <- 100; iter <- 0;
-  if(!is.null(control$tol)) tol <- control$tol else tol <- 1e-2
+  # Convergence criteria setup
+  if(!is.null(control$tol.abs)) tol.abs <- control$tol.abs else tol.abs <- 1e-3
+  if(!is.null(control$tol.rel)) tol.rel <- control$tol.rel else tol.rel <- 1e-2
+  if(!is.null(control$tol.den)) tol.den <- control$tol.den else tol.den <- 1e-3
+  if(!is.null(control$tol.thr)) tol.thr <- control$tol.thr else tol.thr <- 1e-1
   if(!is.null(control$maxit)) maxit <- control$maxit else maxit <- 200
-  if(!is.null(control$conv)) conv <- control$conv else conv <- "relative"
-  if(!conv%in%c('absolute', 'relative')) stop('Only "absolute" and "relative" difference convergence criteria implemented.')
+  if(!is.null(control$conv)) conv <- control$conv else conv <- "sas"
+  if(!conv%in%c('absolute', 'relative', 'either', 'sas'))
+    stop('Convergence criteria must be one of "absolute", "relative", "either" or "sas".')
+  convergence.criteria <- list(type = conv, tol.abs = tol.abs, tol.rel = tol.rel, tol.den = tol.den,
+                               threshold = tol.thr)
+  
   if(!is.null(control$verbose)) verbose <- control$verbose else verbose <- F
   if(!is.null(control$hessian)) hessian <- control$hessian else hessian <- 'auto'
-  if(!hessian %in% c('auto', 'manual')) stop("Argument 'hessian' needs to be either 'auto' (i.e. from optim) or 'manual' (i.e. from _sdb, the defualt).")
+  if(!hessian %in% c('auto', 'manual')) stop("Argument 'hessian' needs to be either 'auto' (i.e. from optim) or 'manual' (i.e. from _sdb, the default).")
   if(!is.null(control$return.inits)) return.inits <- control$return.inits else return.inits <- F
-  if(!is.null(control$beta.quad)) beta.quad <- control$beta.quad else beta.quad <- F
+  if(!is.null(control$return.dmats)) return.dmats <- control$return.dmats else return.dmats <- T
   
+  if(verbose) cat("Starting EM algorithm...\n")
+  converged <- FALSE
   EMstart <- proc.time()[3]
-  while(diff > tol && iter < maxit){
+  while((!converged) && (iter < maxit)){
     update <- EMupdate(Omega, family, X, Y, Z, b, 
                        S, SS, Fi, Fu, l0i, l0u, Delta, l0, sv, 
-                       w, v, n, m, hessian, beta.inds, b.inds, K, q, beta.quad)
+                       w, v, n, m, hessian, beta.inds, b.inds, K, q)
     if(!correlated) update$D[inits.long$off.inds] <- 0
     params.new <- c(vech(update$D), update$beta, unlist(update$sigma)[inits.long$sigma.include], 
                     update$gamma, update$zeta)
     names(params.new) <- names(params)
-    
-    # Check (& print) convergence.
-    diffs <- difference(params, params.new, conv)
-    diff <- max(diffs)
-    if(verbose){
-      print(sapply(params.new, round, 4))
-      message("Iteration ", iter + 1, ' maximum ', conv, ' difference: ', round(diff, 4), ' for parameter ', names(params.new)[which.max(diffs)])
-      message("Largest RE relative difference: ", round(max(difference(do.call(cbind, update$b), do.call(cbind, b), conv)), 4))
-    }
     
     # Set new estimates as current
     b <- update$b
@@ -267,6 +290,9 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
     l0 <- update$l0; l0u <- update$l0u; l0i <- update$l0i
     iter <- iter + 1
     Omega <- list(D = D, beta = beta, sigma = sigma, gamma = gamma, zeta = zeta)
+    
+    convcheck <- converge.check(params, params.new, convergence.criteria, iter, Omega, verbose)
+    if(iter >= 4) converged <- convcheck$converged # Allow to converge after 3 iterations
     params <- params.new
   }
   
@@ -283,7 +309,10 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   ModelInfo$family <- family
   ModelInfo$long.formulas <- long.formulas
   ModelInfo$surv.formulas <- surv.formula
+  ModelInfo$survtime <- surv$survtime
+  ModelInfo$status <- surv$status
   ModelInfo$control <- if(!is.null(control)) control else NULL
+  ModelInfo$convergence.criteria <- convergence.criteria
   ModelInfo$inds <- list(beta = beta.inds, b = b.inds)
   ModelInfo$nobs <- colSums(do.call(rbind, m))
   ModelInfo$n <- n
@@ -292,10 +321,14 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
   
   # Post processing ----
   if(post.process){
-    if(verbose) message('\nCalculating SEs...')
+    if(verbose) cat('Calculating SEs\n')
     beta.inds2 <- lapply(beta.inds, function(x) x - 1); b.inds2 <- lapply(b.inds, function(x) x - 1) 
     gamma.rep <- rep(gamma, sapply(b.inds, length))
     pp.start.time <- proc.time()[3]
+    
+    # Evaluate l0 at final parameter estimates and obtain l0u from surv.mod.
+    l0 <- sv$nev/rowSums(lambdaUpdate(sv$surv.times, sv$ft.mat, gamma, zeta, sv$S, update$Sigma, b, w, v, b.inds2))
+    sv.new <- surv.mod(surv, formulas, l0)
     
     # b and Sigmai at MLEs
     b.update <- mapply(function(b, Y, X, Z, Delta, S, Fi, l0i, SS, Fu, l0u){
@@ -304,31 +337,38 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
             Delta = Delta, S = S, Fi = Fi, l0i = l0i, SS = SS, Fu = Fu, haz = l0u, gamma_rep = gamma.rep, zeta = zeta,
             beta_inds = beta.inds2, b_inds = b.inds2, K = K,
             method = 'BFGS', hessian = T)
-    }, b = b, Y = Y, X = X, Z = Z, Delta = Delta, S = S, Fi = Fi, l0i = l0i, SS = SS,
-    Fu = Fu, l0u = l0u, SIMPLIFY = F)
+    }, b = b, Y = Y, X = X, Z = Z, Delta = Delta, S = S, Fi = Fi, l0i = sv.new$l0i, SS = SS,
+    Fu = Fu, l0u = sv.new$l0u, SIMPLIFY = F)
     Sigma <- lapply(b.update, function(x) solve(x$hessian))
     b <- lapply(b.update, function(x) x$par)
     SigmaSplit <- lapply(Sigma, function(x) lapply(b.inds, function(y) as.matrix(x[y,y])))
-    bsplit <- lapply(b, function(x) lapply(b.inds, function(y) x[y])) # Needed for updates to beta.
-    # The Information matrix
-    I <- structure(obs.emp.I(coeffs, dmats, surv, sv, 
-                             Sigma, SigmaSplit, b, bsplit, 
-                             l0u, w, v, n, family, K, q, beta.inds, b.inds, beta.quad),
-                   dimnames = list(names(params), names(params)))
-
-    I.inv <- tryCatch(solve(I), error = function(e) e)
-    if(inherits(I.inv, 'error')) I.inv <- structure(MASS::ginv(I),
-                                                    dimnames = dimnames(I))
-    out$SE <- sqrt(diag(I.inv))
-    out$vcov <- I.inv
+    bsplit <- lapply(b, function(x) lapply(b.inds, function(y) x[y]))
     
+    # Obtain profile estimate (again) at final b.hat and Sigma.hat
+    l0 <- sv$nev/rowSums(lambdaUpdate(sv$surv.times, sv$ft.mat, gamma, zeta, sv$S, Sigma, b, w, n, b.inds2))
+    sv.new <- surv.mod(surv, formulas, l0)
+
+    # The Information matrix
+    II <- obs.emp.I(coeffs, dmats, surv, sv, 
+                    Sigma, SigmaSplit, b, bsplit, 
+                    sv.new$l0u, w, v, n, family, K, q, beta.inds, b.inds)
+    H <- structure(II$Hessian,
+                   dimnames = list(names(params), names(params)))
+    
+    I <- tryCatch(solve(H), error = function(e) e)
+    if(inherits(I, 'error')) I <- structure(MASS::ginv(H), dimnames = dimnames(H))
+    out$Hessian <- H
+    out$vcov <- I
+    out$SE <- sqrt(diag(I))
+   
     postprocess.time <- round(proc.time()[3]-pp.start.time, 2)
     # Calculate log-likelihood. Done separately as EMtime + postprocess.time is for EM + SEs.
-    out$logLik <- joint.log.lik(coeffs, dmats, b, surv, sv, l0u, l0i, gamma.rep, beta.inds, b.inds, 
+    out$logLik <- joint.log.lik(coeffs, dmats, b, surv, sv, sv.new$l0u, sv.new$l0i, gamma.rep, beta.inds, b.inds, 
                                 K, q, family, Sigma)
     # Collate RE and their variance
     REs <- do.call(rbind, b)
     attr(REs, 'Var') <- do.call(rbind, lapply(Sigma, diag))
+    attr(REs, 'vcov') <- do.call(rbind, lapply(Sigma, vech))
     out$REs <- REs
   }
   comp.time <- round(proc.time()[3] - start.time, 3)
@@ -336,6 +376,9 @@ joint <- function(long.formulas, surv.formula, data, family, post.process = TRUE
                         `Post processing` = if(post.process) unname(postprocess.time) else NULL,
                         `Total Computation time` = unname(comp.time),
                         `iterations` = iter)
+  
+  dmats <- list(long = dmats, surv = if(post.process) sv.new else sv, ph = surv)
+  if(return.dmats) out$dmats <- dmats
   
   if(return.inits) out$inits = inits.long
   class(out) <- 'joint'

@@ -42,22 +42,52 @@ parseFormula <- function(formula){
   ))
 }
 
-# Take and return difference between two vectors according to some criterion.
 #' @keywords internal
-difference <- function(params.old, params.new, type){
-  if(type == 'absolute'){
-    rtn <- abs(params.new - params.old)
-  }else if(type == 'relative'){
-    rtn <- max(
-      (params.new - params.old)/(abs(params.old) + 1e-3)
-    )
-  }else{
-    rtn <- NA
+converge.check <- function(params.old, params.new, criteria, iter, Omega, verbose){
+  
+  type <- criteria$type
+  # Absolute difference
+  diffs.abs <- abs(params.new - params.old)
+  # Relative difference
+  diffs.rel <- diffs.abs/(abs(params.old) + criteria$tol.den)
+  # SAS convergence criterion
+  sas.crit <- abs(params.old) >= criteria$threshold
+  sas.abs <- diffs.abs < criteria$tol.abs
+  sas.rel <- diffs.rel < criteria$tol.rel
+  sas.conv <- all(sas.abs[!sas.crit]) & all(sas.rel[sas.crit])
+  
+  # Check convergence based on user-supplied criterion
+  if(type == "abs"){
+    converged <- max(diffs.abs) < criteria$tol.abs
+  }else if(type == "rel"){
+    converged <- max(diffs.rel) < criteria$tol.rel
+  }else if(type == "either"){
+    converged <- (max(diffs.abs) < criteria$tol.abs) | (max(diffs.rel) < criteria$tol.rel)
+  }else if(type == "sas"){
+    converged <- sas.conv
   }
-  rtn
+  
+  if(verbose){
+      cat("\n")
+      cat(sprintf("Iteration %d:\n", iter))
+      cat("vech(D):", round(vech(Omega$D), 4), "\n")
+      cat("beta:", round(Omega$beta, 4), "\n")
+      if(any(unlist(Omega$sigma) != 0)) cat("sigma:", round(unlist(Omega$sigma)[unlist(Omega$sigma) != 0], 4), "\n")
+      cat("gamma:", round(Omega$gamma, 4), "\n")
+      cat("zeta:", round(Omega$zeta, 4), "\n")
+      cat("\n")
+      cat("Maximum absolute difference:", round(max(diffs.abs), 4), "for",
+          names(params.new)[which.max(diffs.abs)], "\n")
+      cat("Maximum relative difference:", round(max(diffs.rel), 4), "for",
+                 names(params.new)[which.max(diffs.rel)], "\n")
+      if(converged) cat(paste0("Converged! (Criteria: ", type, ")."), "\n\n")
+  }
+  
+  list(converged = converged,
+       diffs.abs = diffs.abs, diffs.rel = diffs.rel)
 }
 
-# Don't think this is ever used (?)
+# Don't think this is ever used  -- remove?
 # Create appropriately-dimensioned matrix of random effects.
 #' @keywords internal
 bind.bs<- function(bsplit){
@@ -70,4 +100,35 @@ bind.bs<- function(bsplit){
   })
   step <- do.call(rbind, step); colnames(step) <- NULL
   as.matrix(step)
+}
+
+# Not used, keeping anyway.
+# Obtain hessian from a score vector using some differencing method.
+#' @keywords internal
+numDiff <- function(x, f, ..., method = 'central', heps = 1e-4){
+  method <- match.arg(method, c('central', 'forward', 'Richardson'))
+  n <- length(x)
+  out <- matrix(0, nrow = n, ncol = n)
+  hepsmat <- diag(pmax(abs(x), 1) * heps, nrow = n)
+  if(method == "central"){
+    for(i in 1:n){
+      hi <- hepsmat[,i]
+      fdiff <- c(f(x + hi, ...) - f(x - hi, ...))
+      out[, i] <- fdiff/(2 * hi[i])
+    }
+  }else if(method == "Richardson"){
+    for(i in 1:n){
+      hi <- hepsmat[,i]
+      fdiff <- c(f(x - 2 * hi, ...) - 8 * f(x - hi, ...) + 8 * f(x + hi, ...) - f(x + 2 * hi, ...))
+      out[,i] <- fdiff/(12*hi[i])
+    }
+  }else{
+    f0 <- f(x, ...)
+    for(i in 1:n){
+      hi <- hepsmat[,i]
+      fdiff <- c(f(x + hi, ...) - f0)
+      out[,i] <- fdiff/hi[i]
+    }
+  }
+  (out + t(out)) * .5
 }

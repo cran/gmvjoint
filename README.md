@@ -17,16 +17,16 @@ types.
 
 Currently, five families can be fit: Gaussian; Poisson; binomial; Gamma and generalised Poisson. 
 
-## To-do list
-The package in current incantation is relatively skeletal, as such not a lot of post-hoc
-analyses on fitted joint models is possible. As such, an immediate to-do list currently looks like
+## Installation
+You can install the latest 'official' release from CRAN in the usual way: 
+```r
+install.packages('gmvjoint')
+```
 
-* Dynamic predictions: Note that code to do this already exists at https://github.com/jamesmurray7/GLM/blob/main/Multi-test/DynamicPredictions.R, 
-which just needs to be ported over.
-* Usual modelling generics: Fitted, residuals (probably just longitudinal) and plots. 
-
-No promises are made w.r.t timescale of these being implemented: Currently I am a PhD
-student and little cache is awarded for production or maintenance of R packages!
+or the latest development version using `devtools`: 
+```r
+devtools::install_github('jamesmurray7/gmvjoint')
+``` 
 
 ## Example
 To fit a joint model, we first need to specify the longitudinal and survival sub-models. 
@@ -57,7 +57,15 @@ list. We call our `fit` via
 fit <- joint(long.formulas = long.formulas, surv.formula = surv.formula, data = PBC, 
              family = list("gaussian", "gaussian", "binomial"))
 ```
-where extra control arguments are documented in `?joint`. Numerous S3 methods exist for the class of object `joint` creates, for example `summary()`, `logLik()`, and `fixef()`.
+where extra control arguments are documented in `?joint`. Numerous S3 methods exist for the class of object `joint` creates: `summary()`, `logLik()`, `fixef()`, `ranef()`, `fitted()` and `resid()`. 
+
+We bridge from a set of joint model parameter estimates to a prognostic one by dynamic predictions `dynPred`. We can assess discriminatory capabilities of the `joint()` model fit by the `ROC` function, too.
+
+## To-do list
+Currently the largest limitation exists with the relatively strict data structure necessary and the corresponding calls to the `joint` function. The below lists these (known) limitations and plans for relaxing.
+
+* Longitudinal information: The longitudinal time argument must be named `time` and the subject identifier (which we 'split' random effects by) `id`. Unsure if I will ever change these; I think a little more user pre-processing is no bad thing, when alternative would be a more crowded call to `joint`, which I wouldn't be a fan of.
+* Misc.: data must be balanced (i.e. no `NA` values); this will be fixed in a future update. For now I don't think this is the biggest issue, and recommend using `na.omit` for example. Additionally, the id variable __must__ increment by no more than one. That is, `data$id=1,1,1,2,2,2,3,3,3` is fine, but `data$id=1,1,1,1,3,3,3,4,4` is not. This is due to how data matrices are created internally and will be fixed in the future. 
 
 ## References
 

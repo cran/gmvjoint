@@ -4,7 +4,6 @@
 #' \strong{linear predictor} for each \eqn{k=1,\dots,K} response is returned.
 #'
 #' @param object a joint model fit by the \code{\link{joint}} function. 
-#' @param data the \emph{original} data set (i.e. that used in the \code{joint} call).
 #' @param as should the fitted values be returned as a \code{"matrix"} (the default) or as a 
 #' \code{"list"}? Note that \code{as="matrix"} only works for balanced responses.
 #' @param ... Additional arguments (none used).
@@ -36,14 +35,13 @@
 #' fit <- joint(long.formulas, surv.formula, PBC, family = list('gaussian', 'poisson'))
 #' fitted(fit)
 #' }
-fitted.joint <- function(object, data = NULL, as = "matrix", ...){
+fitted.joint <- function(object, as = "matrix", ...){
   if(!inherits(object, 'joint')) stop("Only usable with objects of class 'joint'.")
-  if(is.null(object$dmats) && is.null(data))
-    stop("Must provide original 'data' if 'joint' object doesn't contain data matrices.")
+  if(is.null(object$dmats)) stop("Need dmats, rerun with appropriate control arguments.")
   as <- match.arg(as, c('matrix', 'list'))
   
   M <- object$ModelInfo
-  K <- length(M$family)
+  K <- M$K
   # Check and stop if responses are unbalanced and matrix is requested.
   if(as == 'matrix' & (length(M$nobs) > 1 & length(unique(M$nobs)) > 1))
     stop("Unbalanced responses, please return as = 'list' instead.")
@@ -51,20 +49,12 @@ fitted.joint <- function(object, data = NULL, as = "matrix", ...){
   # Ranefs and beta estimates
   .b <- ranef(object)
   b <- lapply(1:M$n, function(i) .b[i,,drop=F])
-  b.inds <- M$inds$b
+  b.inds <- M$inds$R$b
   beta <- object$coeffs$beta
-  beta.inds <- M$inds$beta
+  beta.inds <- M$inds$R$beta
   
-  if(is.null(object$dmats)){ # If return.dmats is FALSE...
-    # Re-make formulae
-    fs <- M$long.formulas; K <- length(fs)
-    fs <- lapply(fs, parseFormula)
-    
-    dmats <- createDataMatrices(data, fs)
-  }else{
-    dmats <- object$dmats$long
-  }
-  
+  dmats <- object$dmats$long
+
   # Fitted value (of __linear predictor__)
   fits <- mapply(function(X, Z, b){
     lapply(1:K, function(k){
@@ -75,7 +65,7 @@ fitted.joint <- function(object, data = NULL, as = "matrix", ...){
   # Get into one "long" column for each and return...
   out <- setNames(lapply(1:K, function(k){
     do.call(c, lapply(fits, el, k))
-  }), gsub('\\s+.*$', '', M$ResponseInfo))
+  }), gsub('\\s+.*$', '', M$Resps))
   if(as == 'matrix') out <- do.call(cbind, out)
   class(out) <- 'fitted.joint'
   out
@@ -90,7 +80,7 @@ CoxSnellResids <- function(object){
                  lapply(object$ModelInfo$long.formulas, parseFormula), object$hazard[,2])
   l0u <- sv$l0u; SS <- sv$SS; Fu <- sv$Fu
   b <- lapply(1:object$ModelInfo$n, function(i) object$REs[i, , drop = T]); 
-  gamma <- rep(object$coeffs$gamma, sapply(object$ModelInfo$inds$b, length))
+  gamma <- rep(object$coeffs$gamma, sapply(object$ModelInfo$inds$R$b, length))
   zeta <- object$coeffs$zeta
   cumRisks <- mapply(function(l0u, SS, Fu, b){
     crossprod(l0u, exp(SS %*% zeta + Fu %*% (gamma * b)))
@@ -103,7 +93,6 @@ CoxSnellResids <- function(object){
 #' @description returns the Pearson residuals values from a \code{joint} object.
 #' 
 #' @param object a joint model fit by \code{\link{joint}} function.
-#' @param data the \emph{original} data set (i.e. that used in the \code{joint} call).
 #' @param what character string. Should the \code{"long"}itudinal process(es) be extracted,
 #' or the \code{"surv"}ival ones?
 #' @param type character. The residual type for \code{what = "long"} residuals only. Choices are
@@ -145,60 +134,76 @@ CoxSnellResids <- function(object){
 #' plot(R)
 #' plot(residuals(fit, what = "surv"))
 #' }
-residuals.joint <- function(object, data = NULL, what = c("longit", "surv"),
+residuals.joint <- function(object, what = c("longit", "surv"),
                             type = c('response', 'pearson'), ...){
   if(!inherits(object, 'joint')) stop("Only usable with objects of class 'joint'.")
-  if(is.null(object$dmats) && is.null(data))
-    stop("Must provide original 'data' if 'joint' object doesn't contain data matrices.")
+  if(is.null(object$dmats)) stop("Need dmats, rerun with appropriate control arguments.")
   type <- match.arg(type)
   what <- match.arg(what)
   
   if(what == "longit"){
-    fits <- fitted(object, data = data, as = 'list') # Get fitted values
-    M <- object$ModelInfo; K <- length(M$family)
-    resps <- unname(sapply(M$ResponseInfo, function(x) gsub('\\s+.*$', '', x)))
-    if(!is.null(data)){
-      Ys <- data[,match(resps, names(data))]
-    }else{
-      # Re-construct data from dmats
-      Ys <- do.call(cbind, lapply(1:K, function(k) do.call(rbind, lapply(object$dmats$long$Y, el, k))))
-      colnames(Ys) <- resps
-      Ys <- as.data.frame(Ys)
-    }
+    fits <- fitted(object, as = 'list') # Get fitted values
+    M <- object$ModelInfo; K <- M$K
+    resps <- M$Resps
+    Ys <- do.call(cbind, lapply(1:K, function(k) do.call(c, lapply(object$dmats$long$Y, el, k))))
+    colnames(Ys) <- resps
+    Ys <- as.data.frame(Ys)
     
     fams <- unlist(M$family);
-    S <- unlist(object$coeffs$sigma)
+    S <- object$coeffs$sigma
     
-    out <- setNames(lapply(1:K, function(k){
+    # Fitted values back-transformed to response scale.
+    fitsk <- lapply(1:K, function(k){
       f <- fams[k]
       fitsk <-  switch(f,
                        gaussian = fits[[resps[k]]],
                        poisson = exp(fits[[resps[k]]]),
+                       negbin = exp(fits[[resps[k]]]),
                        genpois = exp(fits[[resps[k]]]), 
                        binomial = plogis(fits[[resps[k]]]),
                        Gamma = exp(fits[[resps[k]]])
       )
-      res <- Ys[,resps[k]] - fitsk
-      r <- switch(type,
-                  response = res,
-                  pearson = {
-                    switch(f, 
-                           gaussian = res/sqrt(S[k]),
-                           poisson = res/sqrt(fitsk),
-                           genpois = res/sqrt(fitsk*(1+S[k])^2),
-                           binomial = res/sqrt(fitsk * (1 - fitsk)),
-                           Gamma = res/sqrt(fitsk^2)
-                    )
-                  }
-      )
-      list(fitted = fitsk, residuals = r)
+      return(fitsk)
+    })
+    
+    # RESPONSE residuals
+    resids <- lapply(1:K, function(k){
+      Ys[,k] - fitsk[[k]]
+    })
+    
+    if(type == "pearson"){
+      out <- lapply(1:K, function(k){
+        f <- fams[k]; fitk <- fitsk[[k]]; res <- resids[[k]]
+        r <- switch(f,
+                    gaussian = res/sqrt(S[[k]]),
+                    poisson = res/sqrt(fitk),
+                    negbin = {
+                      WW <- do.call(rbind, lapply(object$dmats$long$W, el, k))
+                      phi <- exp(WW %*% S[[k]])
+                      res/sqrt(fitk * (1+fitk/phi))
+                    },
+                    genpois = {
+                      WW <- do.call(rbind, lapply(object$dmats$long$W, el, k))
+                      phi <- WW %*% S[[k]]
+                      res/sqrt(fitk*(1+phi)^2)
+                    },
+                    binomial = res/sqrt(fitk * (1 - fitk)),
+                    Gamma = res/sqrt(fitk^2))
+        r
+      })
+    }else{
+      out <- resids
+    }
+    
+    r <- setNames(lapply(1:K, function(k){
+      this <- c(out[[k]]); fitk <- fitsk[[k]]
+      attr(this, 'fitted') <- c(fitk)
+      this
     }), resps)
-    r <- lapply(out, el, 2)
+    
     class(r) <- "residuals.joint"
-    attr(r, 'fitted') <- lapply(out, el, 1)
     attr(r, 'type') <- type
     attr(r, 'what') <- what
-    r
   }else{
     r <- CoxSnellResids(object)
     class(r) <- "residuals.joint"
@@ -216,8 +221,12 @@ print.residuals.joint <- function(x, ...){
   what <- attr(x, 'what')
   type <- attr(x, 'type') 
   if(what == "longit"){
-    attr(x, 'type') <- NULL; attr(x, 'fitted') <- NULL
-    attr(x, 'class') <- NULL
+    attr(x, 'type') <- NULL; attr(x, 'class') <- NULL; attr(x, "what") <- NULL
+    x <- lapply(x, function(X){
+      attr(X, 'fitted') <- NULL
+      c(X)
+    })
+    
     print(x)
     if(type == 'pearson') cat("Pearson residuals ")
     if(type == 'response') cat("Residuals ")
@@ -231,7 +240,6 @@ print.residuals.joint <- function(x, ...){
     # Difference in residuals and expected
     cat("Cox-Snell residuals:\n")
     print(round(summary(x), 3))
-    # cat("\Martingales by ", paste0(colnames(object$dmats$ph$Smat), collapse = ', '), ':\n', sep = '')
     cat("\nMartingale residuals: \n")
     print(round(summary(Tis-x), 3))
     cat("\n")
@@ -277,9 +285,9 @@ plot.residuals.joint <- function(x, ...){
       par(mfrow = c(1,1))
     }
     # Plot the residuals from residuals.joint object (x).
-    ylab <- ifelse(type=='pearson', 'Pearson residuals', 'Residuals')
+    ylab <- ifelse(type == 'pearson', 'Pearson residuals', 'Residuals')
     for(k in 1:K){
-      fitk <- attr(x, 'fitted')[[resps[k]]]
+      fitk <- attr(x[[k]], 'fitted')
       plot(x[[k]]~fitk, main = resps[k], cex = .75,
            pch = 20, ylab = ylab, xlab = 'Fitted')
       abline(h = 0, lty = 5, col = 'red')
@@ -290,7 +298,7 @@ plot.residuals.joint <- function(x, ...){
     # KM estimate
     sf.null <- survfit(Surv(x, unlist(object$dmats$ph$Delta)) ~ 1)
     # Stratified by call to `joint`.
-    ff <- as.formula(gsub(object$ModelInfo$survtime, 'x', deparse(object$ModelInfo$surv.formulas)))
+    ff <- as.formula(gsub(object$ModelInfo$survtime, 'x', deparse(object$ModelInfo$surv.formula)))
     sf.fitd <- survfit(ff, data = object$dmats$ph$survdata)
     sort.Ti <- sort(object$dmats$surv$Tis)
     num.strata <- length(sf.fitd$strata)

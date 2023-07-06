@@ -1,8 +1,8 @@
 Package: gmvjoint
 Type: Package
 Title: Joint Models of Survival and Multivariate Longitudinal Data
-Version: 0.2.1
-Date: 2023-03-13
+Version: 0.3.0
+Date: 2023-07-04
 Authors@R: person("James", "Murray", email = "j.murray7@ncl.ac.uk", role = c("aut", "cre"))
 Description: Fit joint models of survival and multivariate longitudinal data. The longitudinal
     data is specified by generalised linear mixed models. The joint models are fit via maximum
@@ -11,7 +11,7 @@ Description: Fit joint models of survival and multivariate longitudinal data. Th
 License: GPL-3
 Depends: R (>= 3.6.0), glmmTMB, survival
 Imports: Rcpp (>= 1.0.6), MASS, methods, mvtnorm, pracma, stats,
-        statmod
+        statmod, xtable
 LinkingTo: Rcpp, RcppArmadillo
 Encoding: UTF-8
 RoxygenNote: 7.2.2
@@ -19,8 +19,8 @@ LazyData: true
 URL: https://github.com/jamesmurray7/gmvjoint
 BugReports: https://github.com/jamesmurray7/gmvjoint/issues
 NeedsCompilation: yes
-Packaged: 2023-03-23 18:24:50 UTC; c0061461
+Packaged: 2023-07-06 12:50:50 UTC; c0061461
 Author: James Murray [aut, cre]
 Maintainer: James Murray <j.murray7@ncl.ac.uk>
 Repository: CRAN
-Date/Publication: 2023-03-24 12:00:06 UTC
+Date/Publication: 2023-07-06 13:40:05 UTC

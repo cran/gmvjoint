@@ -34,8 +34,7 @@
 #' @param scale if \code{b.density = "t"} then this numeric scales the variance-covariance 
 #' parameter in the proposal distribution for the Metropolis-Hastings algorithm. Defaults to 
 #' \code{scale = NULL} which doesn't scale the variance term at all. Users are encouraged to
-#' experiment with values here. We find \code{scale=0.33} works decently well for the case when
-#' \code{b.density = "normal"} and \code{scale=2} for \code{b.density="t"}.
+#' experiment with values here.
 #' @param df if \code{b.density = "t"} then this numeric denotes the degrees of freedom of the 
 #' proposed \eqn{t} distribution on the random effects. \code{df=4} is suggested.
 #'
@@ -68,7 +67,6 @@
 #' \eqn{\hat{\boldsymbol{b}}} is drawn from either the (multivariate) Normal, or \eqn{t} 
 #' distribution by means of a Metropolis-Hastings algorithm with \code{nsim} iterations.
 #' 
-#' 
 #' @references 
 #' 
 #' Bernhardt PW, Zhang D and Wang HJ. A fast EM Algorithm for Fitting Joint Models of a Binary 
@@ -79,7 +77,7 @@
 #' for longitudinal and time-to-event data. \emph{Biometrics} 2011;
 #' \strong{67}: 819–829.
 #' 
-#' @seealso \code{\link{ROC}}, \code{\link{bootAUC}} and \code{\link{plot.dynPred}}.
+#' @seealso \code{\link{ROC}} and \code{\link{plot.dynPred}}.
 #' @importFrom stats median quantile
 #' @author James Murray (\email{j.murray7@@ncl.ac.uk}).
 #' @export
@@ -92,26 +90,25 @@
 #' long.formulas <- list(serBilir ~ drug * time + (1 + time|id))
 #' surv.formula <- Surv(survtime, status) ~ drug
 #' family <- list('gaussian')
-#' fit <- joint(long.formulas, surv.formula, PBC, family, 
-#'              control = list(verbose = TRUE))
+#' fit <- joint(long.formulas, surv.formula, PBC, family)
 #' preds <- dynPred(PBC, id = 81, fit = fit, u = NULL, nsim = 200, b.density = 'normal',
-#'                  scale = 0.33)
+#'                  scale = 0.18)
 #' preds
 #' plot(preds)
 #' # Bivariate ------------------------------------------------------------
+#' # Does introduction of albumin affect conditional survival probability?
 #' long.formulas <- list(
 #'   serBilir ~ drug * time + I(time^2) + (1 + time + I(time^2)|id),
 #'   albumin ~ drug * time + (1 + time|id)
 #' )
-#' # Does introduction of albumin affect conditional survival probability?
 #' fit <- joint(long.formulas, surv.formula, data = PBC, family = list("gaussian", "gaussian"))
 #' bi.preds <- dynPred(PBC, id = 81, fit = fit, u = NULL, nsim = 200, b.density = 'normal',
-#'                     scale = 0.50)
+#'                     scale = 0.66)
 #' bi.preds
-#' plot(bi.preds)
+#' plot(bi.preds) # Appears to level-off quicker; perhaps indicative of this id's albumin levels.
 #' }
 dynPred <- function(data, id, fit, u = NULL, nsim = 200, progress = TRUE,
-                     b.density = c('normal', 't'), scale = NULL, df = NULL){
+                    b.density = c('normal', 't'), scale = NULL, df = NULL){
   if(!inherits(fit, 'joint')) stop("Only usable with objects of class 'joint'.")
   b.density <- match.arg(b.density)
   
@@ -130,8 +127,8 @@ dynPred <- function(data, id, fit, u = NULL, nsim = 200, progress = TRUE,
   }
   
   # Get indices for \b and \beta
-  b.inds <- lapply(fit$ModelInfo$inds$b, function(x) x - 1)
-  beta.inds <- lapply(fit$ModelInfo$inds$beta, function(x) x - 1)
+  b.inds <- fit$ModelInfo$inds$C$b
+  beta.inds <- fit$ModelInfo$inds$C$beta
   
   # Obtain 'denominator' dataset based on first value of vector u
   newdata2 <- newdata[newdata$time <= u[1], ]
@@ -154,13 +151,8 @@ dynPred <- function(data, id, fit, u = NULL, nsim = 200, progress = TRUE,
       MH.accept <- MH.accept + b.sim$accept
       St <- S_(data.t$surv, rep(O$gamma, sapply(b.inds, length)), O$zeta, b.current)
       for(uu in seq_along(u)){
-        # cat('uu:', uu, '; u[uu]:', u[uu],  # uncomment for loop debugging
-        #     '\nb:', b.current,'.\n')
         data.u <- prepareData(newdata, fit = fit, u = u[uu])
-        pi[i, uu] <- S_(data.u$surv, rep(O$gamma, sapply(b.inds, length)), O$zeta, b.current)/(St)# + 1e-6)
-        # cat('pi(uu):', 
-        #     Surv_(data.u$surv, rep(O$gamma, sapply(b.inds, length)), O$zeta, b.current)/(St),
-        #     '\n.pi[i, uu]:', pi[i,uu], '.\n')
+        pi[i, uu] <- S_(data.u$surv, rep(O$gamma, sapply(b.inds, length)), O$zeta, b.current)/(St)
       }
       if(progress) utils::setTxtProgressBar(pb, i)
     }

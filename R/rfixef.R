@@ -85,11 +85,11 @@ fixef.joint <- function(object, what = c("long", 'surv'), ...){
 ranef.joint <- function(object, Var = FALSE, ...){
   x <- object
   if(!inherits(x, 'joint')) stop("Only usable with objects of class 'joint'.")
-  if(is.null(x$REs)) stop("Rerun with post.process = TRUE.")
   RE <- x$REs
   if(Var){
     Sigma <- attr(RE, 'Var')
     attr(RE, 'Var') <- NULL
+    attr(RE, 'vcov') <- NULL
     out <- list(
       b = RE,
       Sigma = Sigma
@@ -97,6 +97,7 @@ ranef.joint <- function(object, Var = FALSE, ...){
     return(out)
   }else{
     attr(RE, 'Var') <- NULL
+    attr(RE, 'vcov') <- NULL
     return(RE)
   }
 }

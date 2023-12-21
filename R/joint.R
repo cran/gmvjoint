@@ -26,6 +26,20 @@
 #'   \strong{details}. Default is \code{tol.den=1e-3}.}
 #'   \item{\code{tol.thr}}{Numeric: Threshold used when \code{conv = 'sas'}, see 
 #'   \strong{details}. Default is \code{tol.thr=1e-1}.}
+#'   \item{\code{grad.eps}}{Numeric: Step size for numerical differentiation routines used to
+#'   calculate the gradient in updates to dispersion parameters. This defaults to the cube root 
+#'   of machine tolerance. If a different step size is wanted for each response, a list can also 
+#'   be provided, with each of its elements corresponding to each longitudinal response (even if
+#'   not fitted with a dispersion model).}
+#'   \item{\code{hess.eps}}{Numeric: Step size for numerical differentiation routines used to
+#'   calculate the hessian in updates to dispersion parameters. This defaults to the fourth root 
+#'   of machine tolerance. Behaves in same way as \code{grad.eps} for more information.}
+#'   \item{\code{inits}}{List: list of initial conditions, any/all of the following can be 
+#'   specified (largely for bootstrapping purposes). Accepts elements named: \code{D}, which
+#'   should be an appropriately-dimensioned variance-covariance matrix; \code{beta}, a vector
+#'   containing all fixed effects; \code{sigma} a list containing all dispersion parameters,
+#'   with non-applicable elements set to zero; \code{gamma} a vector containing all association
+#'   parameters; \code{zeta} a vector containing the time-invariant survival coefficients.}
 #'   \item{\code{maxit}}{Integer: Maximum number of EM iterations to carry out before
 #'   exiting the algorithm. Defaults to \code{maxit=200L}, which is usually sufficient.}
 #'   \item{\code{correlated}}{Logical: Should covariance parameters \strong{between} responses 
@@ -154,7 +168,7 @@
 #' Zamani H and Ismail N. Functional Form for the Generalized Poisson Regression Model, 
 #' \emph{Communications in Statistics - Theory and Methods} 2012; \strong{41(20)}; 3666-3675.
 #' 
-#' @seealso \code{\link{summary.joint}}, \code{\link{logLik.joint}}, 
+#' @seealso \code{\link{summary.joint}}, \code{\link{logLik.joint}}, \code{\link{boot.joint}},
 #' \code{\link{extractAIC.joint}}, \code{\link{fixef.joint}}, \code{\link{ranef.joint}},
 #' \code{\link{vcov.joint}}, \code{\link{joint.object}} and \code{\link{xtable.joint}}. For
 #' data simulation see \code{\link{simData}}.
@@ -236,6 +250,7 @@ joint <- function(long.formulas, surv.formula,
   
   con <- list(correlated = T, gh.nodes = 3, gh.sigma = 1, center.ph = T,
               tol.abs = 1e-3, tol.rel = 1e-2, tol.thr = 1e-1, tol.den = 1e-3,
+              grad.eps = .Machine$double.eps^(1/3), hess.eps = .Machine$double.eps^(1/4), inits = NULL,
               maxit = 200, conv = 'sas', verbose = F, return.inits = F, return.dmats = T, post.process = T)
   conname <- names(con)
   if(any(!names(control)%in%conname)){
@@ -304,9 +319,11 @@ joint <- function(long.formulas, surv.formula,
   sigma <- inits.long$sigma.init # dispersions
   b <- lapply(1:n, function(i) inits.long$b[i, ])
   # Survival parameters
-  zeta <- inits.surv$inits[match(names(surv$ph$assign), names(inits.surv$inits))]
+  # zeta <- inits.surv$inits[match(names(surv$ph$assign), names(inits.surv$inits))]
+  zeta <- inits.surv$inits[1:surv$pS]
   names(zeta) <- paste0('zeta_', names(zeta))
-  gamma <- inits.surv$inits[grepl('gamma\\_', names(inits.surv$inits))]
+  # gamma <- inits.surv$inits[grepl('gamma\\_', names(inits.surv$inits))]
+  gamma <- inits.surv$inits[(surv$pS+1):length(inits.surv$inits)]
   
   # Survival data objects 
   sv <- surv.mod(surv, formulas, inits.surv$l0.init, inits.long)
@@ -316,7 +333,18 @@ joint <- function(long.formulas, surv.formula,
   params <- c(setNames(vech(D), paste0('D[', apply(which(lower.tri(D, T), arr.ind = T), 1, paste, collapse = ','), ']')),
               beta, unlist(sigma)[inits.long$sigma.include], gamma, zeta)
   sigma.include <- inits.long$sigma.include
+  if(!is.null(con$inits)){
+    parsed.inits <- parseInits(con$inits, params, inds, inits.long, Omega)
+    params <- parsed.inits$params
+    Omega <- parsed.inits$Omega
+  }
   if(!con$return.inits) rm(inits.surv)
+  
+  # step-sizes for grad/hess in dispersion updates
+  if(length(con$grad.eps) == 1L & !is.list(con$grad.eps)) con$grad.eps <- replicate(K, con$grad.eps, simplify = FALSE)
+  if(length(con$hess.eps) == 1L & !is.list(con$hess.eps)) con$hess.eps <- replicate(K, con$hess.eps, simplify = FALSE)
+  if(length(con$grad.eps) != K) stop("Control argument ", sQuote("grad.eps"), " is not of appropriate length.\n")
+  if(length(con$hess.eps) != K) stop("Control argument ", sQuote("hess.eps"), " is not of appropriate length.\n")
   
   # Gauss-Hermite Quadrature ----
   GH <- statmod::gauss.quad.prob(con$gh.nodes, 'normal', sigma = con$gh.sigma)
@@ -325,8 +353,9 @@ joint <- function(long.formulas, surv.formula,
   # Begin EM ----
   diff <- 100; iter <- 0;
   # Convergence criteria setup
-  if(!con$conv%in%c('absolute', 'relative', 'either', 'sas')){
-    warning('Convergence criteria must be one of "absolute", "relative", "either" or "sas". Using "sas"')
+  if(!con$conv%in%c('abs', 'rel', 'either', 'sas')){
+    warning("Convergence criteria must be one of ", sQuote('abs'), ', ', sQuote('rel'), ', ',
+            sQuote('either'), ', or ', sQuote('sas'), '. Using ', sQuote('sas'), '.')
     con$conv <- "sas"
   }
     
@@ -404,7 +433,7 @@ joint <- function(long.formulas, surv.formula,
     pp.start.time <- proc.time()[3]
     
     II <- obs.emp.I(coeffs, dmats, surv, sv, family, b, 
-                    l0i, l0u, w, v, inds)
+                    l0i, l0u, w, v, inds, con)
     H <- structure(II$Hessian,
                    dimnames = list(names(params), names(params)))
     

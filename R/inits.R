@@ -139,8 +139,10 @@ TimeVarCox <- function(data, b, surv, formulas, b.inds, inits.long){
   ss <- .ToStartStop(data, Tvar); q <- ncol(b) # send to Start-Stop (ss) format
   REs <- as.data.frame(b); REs$id <- 1:nrow(b); K <- length(b.inds)
   ss2 <- merge(ss, REs, 'id')
-  invarSurv <- cbind(merge(data[, 'id', drop = F], data.frame(id = 1:surv$n, surv$Smat), 'id'),
-                     data[,c(Tvar, Dvar)])
+  invarSurv <- data[,c("id", surv$invar.surv.names, Tvar, Dvar)]
+  # invarSurv <- cbind(merge(data[, 'id', drop = F], data.frame(id = 1:surv$n, surv$Smat), 'id'),
+  #                    data[,c(Tvar, Dvar)])
+  
   ss3 <- merge(ss2, invarSurv, 'id')
   ss3 <- ss3[!duplicated.matrix(ss3), ]
   
@@ -162,10 +164,87 @@ TimeVarCox <- function(data, b, surv, formulas, b.inds, inits.long){
   # Time Varying coxph
   # Formula
   timevar.formula <- as.formula(
-    paste0('Surv(time1, time2, status2) ~ ', paste0(names(surv$ph$assign), collapse = ' + '), ' + ', paste0('gamma_', 1:K, collapse = ' + '))
+    # paste0('Surv(time1, time2, status2) ~ ', paste0(names(surv$ph$assign), collapse = ' + '), ' + ', paste0('gamma_', 1:K, collapse = ' + '))
+    paste0('Surv(time1, time2, status2) ~ ', surv$invar.surv.formula, ' + ', paste0('gamma_', 1:K, collapse = ' + '))
   )
   ph <- coxph(timevar.formula, data = ss3)
   
   list(inits = coef(ph), l0.init = coxph.detail(ph)$haz, ph = ph)
 }
+
+
+#' @keywords internal
+parseInits <- function(X, params, inds, inits.long, Omega){
+  if(!inherits(X, "list"))
+    stop(sQuote("inits"), " must be of class ", sQuote("list"), ".")
+  
+  poss.names <- c("D", "beta", "sigma", "gamma", "zeta")
+  
+  check.names <- sapply(names(X), `%in%`, poss.names)
+  if(any(!check.names))
+    stop(sQuote("inits"), " can only have elements: ", 
+         paste0(sapply(poss.names, sQuote), collapse=', '), '.')
+  
+  # We'll proceed by 'overwriting' the initial conditions
+  # obtained via glmmTMB/TimeVarCox. Leave those who aren't specified
+  # in the control argument untouched.
+  params.new <- params
+  Omega.new <- Omega
+  if(!is.null(X$D)){
+    vD <- vech(X$D)
+    wD <- grepl("^D\\[", names(params))
+    if(length(vD)!=sum(wD)) # Check dim(D)
+      stop("inits$D is improperly dimensioned.")
+    params.new[wD] <- vD
+    Omega.new$D <- X$D
+  }
+  if(!is.null(X$beta)){
+    lb <- length(unlist(inds$R$beta))
+    if(length(X$beta)!=lb)    # Check dim(beta)
+      stop("inits$beta is improperly dimensioned.")
+    beta.start <- max(grep("^D\\[", names(params))) + 1
+    params.new[beta.start:(beta.start + lb - 1)] <- X$beta
+    Omega.new$beta <- X$beta
+  }
+  if(!is.null(X$sigma)){
+    if(!inherits(X$sigma, "list"))
+      stop("Provide inits$sigma as a list of length K")
+    if(length(X$sigma)!=length(inds$R$beta))
+      stop("X$sigma must be of length K (set the unused elements to zero).")
+    
+    il.s <- inits.long$sigma.init
+    il.s <- unlist(il.s)
+    lS <- length(il.s)
+    if(length(unlist(X$sigma))!=lS)
+      stop("x$sigma improperly dimensioned.")
+    
+    to.replace <- names(il.s[il.s != 0])
+    new.sigma <- unlist(X$sigma)
+    new.sigma <- new.sigma[new.sigma != 0]
+    
+    # Assume they're in the correct order!
+    params.new[match(to.replace, names(params))] <- new.sigma
+    Omega.new$sigma <- X$sigma
+  }
+  if(!is.null(X$gamma)){
+    lg <- length(X$gamma)
+    if(lg != length(inds$R$beta))
+      stop("inits$gamma must be a vector of length K.")
+    
+    params.new[grepl("^gamma\\_", names(params))] <- X$gamma
+    Omega.new$gamma <- X$gamma
+  }
+  if(!is.null(X$zeta)){
+    lz <- length(X$zeta)
+    wz <- which(grepl("^zeta\\_", names(params)))
+    if(lz != length(wz))
+      stop("inits$zeta improperly dimensioned vetor.")
+    
+    params.new[wz] <- X$zeta
+    Omega.new$zeta <- X$zeta
+  }
+  
+  list(params = params.new, Omega = Omega.new)
+}
+
 

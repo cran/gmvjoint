@@ -44,15 +44,19 @@ extract.surv.process <- function(ph){
 #' data = simData()$data
 #' parseCoxph(Surv(survtime, status) ~ bin, data = data)
 parseCoxph <- function(surv.formula, data, center = TRUE){
-  survdata <- data[!duplicated(data[, 'id']), ]; n <- nrow(survdata)
-  ph <- coxph(surv.formula, survdata, x = T)
+  .survdata <- data[!duplicated(data[, 'id']), ]; n <- nrow(.survdata)
+  ph <- coxph(surv.formula, .survdata, x = T)
+  # Determine variable names (if e.g. factor/interaction used)
+  invar.surv.names <- names(attr(ph$terms, "dataClasses"))[-1]
+  # And the expanded formula (for use in inital conditions for surv
+  # sub-model).
+  invar.surv.formula <- paste0(names(ph$assign), collapse=' + ')
+  sf <- suppressWarnings(survfit(ph))
   
-  survdata <- data.frame(id = survdata$id, ph$x, survtime = ph$y[, 1], status = ph$y[, 2])
+  survdata <- data.frame(id = .survdata$id, ph$x, survtime = ph$y[, 1], status = ph$y[, 2])
   # One row per id for each survival covariate.
   Smat <- model.matrix(ph)
   pS <- ncol(Smat)
-  # Use survfit.coxph with newdata argument to avoid warnings.
-  sf <- survfit(ph, newdata = as.data.frame(cbind(Smat, survdata[, c("survtime", "status")])))
   ft <- sf$time[sf$n.event >= 1]     # failure times
   nev <- sf$n.event[sf$n.event >= 1] # Number of failures per failure time
   
@@ -61,7 +65,7 @@ parseCoxph <- function(surv.formula, data, center = TRUE){
   
   # Scale x variables
   if(center){ 
-    survdata[,2:(pS+1)] <- apply(survdata[, 2:(pS+1), drop = F], 2, scale, scale=F)
+    survdata[,2:(pS+1)] <- apply(survdata[, 2:(pS+1), drop = F], 2, scale, scale = F)
     Smat <- apply(Smat, 2, scale, scale = F)
   }
   
@@ -73,10 +77,12 @@ parseCoxph <- function(surv.formula, data, center = TRUE){
   # Return ----
   structure(list(
     survdata = survdata, ph = ph, 
-    Smat = Smat, Delta = Delta,
+    Smat = Smat, pS = pS, Delta = Delta,
     n = n, ft = ft, nev = nev,
     survtime = survtime, status = status,
-    fup.vec = data$time
+    fup.vec = data$time,
+    invar.surv.names = invar.surv.names,
+    invar.surv.formula = invar.surv.formula
   ), class = 'parseCoxph')
   
 }
@@ -163,7 +169,7 @@ surv.mod <- function(surv, formulas, l0.init, inits.long){
     ft = ft, ft.mat = Fu.all, nev = surv$nev, surv.times = surv.times,
     l0 = l0, l0i = l0i, l0u = l0u, 
     Fi = Fi, Fu = Fu, Tis = sapply(TiDi, function(x) c(x[1]$survtime), simplify = T),
-    S = S, SS = SS, q = ncol(Fu.all)
+    S = S, SS = SS, q = ncol(Fu.all), spline.fts = spline.fts
   )
   
 }
